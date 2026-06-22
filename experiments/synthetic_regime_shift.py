@@ -16,6 +16,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -180,6 +181,67 @@ def plot_results(
     plt.close(fig)
 
 
+def detection_metrics(
+    drift: np.ndarray,
+    times: np.ndarray,
+    shift_index: int,
+    n_std: float = 3.0,
+) -> dict[str, float]:
+    """Threshold-based detection metrics for one drift signal.
+
+    Threshold is set from the pre-shift segment only (pre_mean + n_std *
+    pre_std), matching a standard anomaly-detection convention where the
+    "normal" regime defines what counts as alarm-worthy.
+    """
+    pre_mask = times < shift_index
+    post_mask = ~pre_mask
+
+    pre = drift[pre_mask]
+    post = drift[post_mask]
+    post_times = times[post_mask]
+
+    pre_mean = float(pre.mean())
+    pre_std = float(pre.std())
+    threshold = pre_mean + n_std * pre_std
+
+    exceed = np.where(post > threshold)[0]
+    delay = float(post_times[exceed[0]] - shift_index) if exceed.size else float("nan")
+    false_alarms = int(np.sum(pre > threshold))
+
+    auroc = float("nan")
+    try:
+        from sklearn.metrics import roc_auc_score
+
+        labels = (times >= shift_index).astype(int)
+        auroc = float(roc_auc_score(labels, drift))
+    except ImportError:
+        pass
+
+    return {
+        "Pre Mean": pre_mean,
+        "Pre Std": pre_std,
+        "Post Mean": float(post.mean()) if post.size else float("nan"),
+        "Max Post": float(post.max()) if post.size else float("nan"),
+        "Delay": delay,
+        "False Alarms": false_alarms,
+        "AUROC": auroc,
+    }
+
+
+def build_metrics_table(
+    times: np.ndarray,
+    signals: dict[str, np.ndarray],
+    shift_index: int,
+    n_std: float = 3.0,
+) -> pd.DataFrame:
+    """Build a comparison table of detection metrics across all drift signals."""
+    rows = {
+        name: detection_metrics(values, times, shift_index, n_std=n_std)
+        for name, values in signals.items()
+    }
+    return pd.DataFrame(rows).T
+
+
 def main() -> None:
     window = 128
     stride = 8
@@ -215,6 +277,11 @@ def main() -> None:
     print("Mean/variance check:")
     print(f"  pre mean={series[:shift_index].mean():.4f}, pre var={series[:shift_index].var():.4f}")
     print(f"  post mean={series[shift_index:].mean():.4f}, post var={series[shift_index:].var():.4f}")
+
+    all_signals = {**drifts, "TAMC topological drift": topo_drift}
+    metrics_table = build_metrics_table(times, all_signals, shift_index)
+    print("\nDetection metrics (threshold = pre_mean + 3*pre_std):")
+    print(metrics_table.to_string(float_format=lambda v: f"{v:.4f}"))
 
 
 if __name__ == "__main__":
