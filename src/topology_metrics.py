@@ -135,14 +135,18 @@ def bottleneck_distance(diagram_a: np.ndarray, diagram_b: np.ndarray) -> float:
 
 
 def wasserstein_distance(diagram_a: np.ndarray, diagram_b: np.ndarray, order: int = 2) -> float:
-    """Wasserstein distance between two persistence diagrams via persim."""
+    """Wasserstein distance between two persistence diagrams via persim.
+
+    `order` is accepted for API stability but persim's wasserstein() (0.3.x)
+    only computes the order-2 (Euclidean ground metric) distance.
+    """
     try:
         from persim import wasserstein
     except ImportError as exc:  # pragma: no cover
         raise ImportError(
             "persim is required for wasserstein_distance; install via requirements.txt"
         ) from exc
-    return float(wasserstein(diagram_a, diagram_b, order=order))
+    return float(wasserstein(diagram_a, diagram_b))
 
 
 def topology_summary_vector(
