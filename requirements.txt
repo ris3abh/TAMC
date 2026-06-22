@@ -5,3 +5,13 @@ scikit-learn
 networkx
 gudhi
 jupyter
+pandas
+torch
+tqdm
+ripser
+persim
+statsmodels
+ruptures
+pytest
+black
+ruff
