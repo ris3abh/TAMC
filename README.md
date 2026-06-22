@@ -16,7 +16,7 @@ TAMC is not proposed as a generic topological time-series detector or a topology
 
 To our knowledge, TAMC is the first framework to explicitly couple streaming persistent homology of delay-reconstructed time-series attractors with forward-only test-time adaptation of frozen forecasting models under non-stationary distribution shift. Unlike prior topology-based forecasting methods, TAMC does not train topology into the forecaster; unlike prior time-series TTA methods, it controls adaptation using dynamical attractor topology; and unlike topology-guided TTA in vision, it computes topology from the reconstructed data-generating dynamics rather than from neural activation manifolds.
 
-See [paper_notes/research_biref.md](paper_notes/research_biref.md) for the full novelty assessment, related-work map, and experimental roadmap.
+See [paper_notes/research_brief.md](paper_notes/research_brief.md) for the full novelty assessment, related-work map, and experimental roadmap.
 
 ## Pipeline
 
@@ -25,6 +25,27 @@ Streaming signal → Delay-coordinate embedding → Sliding point cloud → Pers
 ## Status
 
 Early-stage research prototype.
+
+## Environment
+
+This project uses [`uv`](https://docs.astral.sh/uv/) for Python version management, dependency locking, virtual environments, and command execution.
+
+### Setup
+
+```bash
+uv python install 3.11
+uv sync
+```
+
+# Usage
+
+```bash
+make sync
+make test
+make lint
+make format
+make notebook
+```
 
 ## Repository structure
 

@@ -18,15 +18,30 @@ except ImportError as exc:  # pragma: no cover - dependency documented in requir
 
 
 def vietoris_rips_persistence(
-    point_cloud: np.ndarray, max_dimension: int = 1, max_edge_length: float | None = None
+    point_cloud: np.ndarray,
+    max_dimension: int = 1,
+    max_edge_length: float | None = None,
 ) -> list[tuple[int, tuple[float, float]]]:
     """Compute persistence pairs (homology_dim, (birth, death)) via Vietoris-Rips.
 
     Restricted to H0 and H1 by default per the project's cost/accuracy tradeoff
-    (see paper_notes/research_biref.md, Risk 4).
+    (see paper_notes/research_brief.md, Risk 4).
     """
     point_cloud = np.asarray(point_cloud, dtype=float)
-    rips = gudhi.RipsComplex(points=point_cloud, max_edge_length=max_edge_length)
+
+    if point_cloud.ndim != 2:
+        raise ValueError("point_cloud must be 2D: (n_points, n_features)")
+    if point_cloud.shape[0] < 2:
+        raise ValueError("point_cloud must contain at least two points")
+    if max_dimension < 0:
+        raise ValueError("max_dimension must be >= 0")
+
+    edge_length = float("inf") if max_edge_length is None else float(max_edge_length)
+
+    rips = gudhi.RipsComplex(
+        points=point_cloud,
+        max_edge_length=edge_length,
+    )
     simplex_tree = rips.create_simplex_tree(max_dimension=max_dimension + 1)
     return simplex_tree.persistence()
 

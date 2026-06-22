@@ -1,7 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+
 data/*
 !data/README.md
+
 figures/*
 !figures/README.md
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
