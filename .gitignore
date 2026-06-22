@@ -1,0 +1,7 @@
+data/*
+!data/README.md
+figures/*
+!figures/README.md
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
