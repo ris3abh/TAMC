@@ -6,7 +6,8 @@ Goal:
     statistics remain comparatively weak.
 
 Run:
-    uv run python experiments/synthetic_regime_shift.py
+    uv run python experiments/synthetic_regime_shift.py --seed 0
+    uv run python experiments/synthetic_regime_shift.py --multi-seed 10
 """
 
 from __future__ import annotations
@@ -217,14 +218,18 @@ def detection_metrics(
     except ImportError:
         pass
 
+    post_mean = float(post.mean()) if post.size else float("nan")
+    separation = (post_mean - pre_mean) / (pre_std + 1e-8)
+
     return {
         "Pre Mean": pre_mean,
         "Pre Std": pre_std,
-        "Post Mean": float(post.mean()) if post.size else float("nan"),
+        "Post Mean": post_mean,
         "Max Post": float(post.max()) if post.size else float("nan"),
         "Delay": delay,
         "False Alarms": false_alarms,
         "AUROC": auroc,
+        "Separation": separation,
     }
 
 
@@ -242,11 +247,11 @@ def build_metrics_table(
     return pd.DataFrame(rows).T
 
 
-def main() -> None:
-    window = 128
-    stride = 8
-
-    series, shift_index = generate_sine_to_quasiperiodic()
+def run_experiment(
+    seed: int, window: int = 128, stride: int = 8
+) -> tuple[pd.DataFrame, dict]:
+    """Run one full seed of the experiment; return its metrics table and raw arrays."""
+    series, shift_index = generate_sine_to_quasiperiodic(seed=seed)
     source_window = series[:window]
 
     times, drifts = compute_baseline_drifts(
@@ -262,26 +267,93 @@ def main() -> None:
         stride=stride,
     )
 
-    output_path = Path(__file__).resolve().parents[1] / "figures" / "synthetic_regime_shift_drift.png"
+    all_signals = {**drifts, "TAMC topological drift": topo_drift}
+    metrics_table = build_metrics_table(times, all_signals, shift_index)
+
+    raw = {
+        "series": series,
+        "shift_index": shift_index,
+        "times": times,
+        "drifts": drifts,
+        "topo_drift": topo_drift,
+    }
+    return metrics_table, raw
+
+
+def run_single_seed(seed: int, figures_dir: Path) -> None:
+    metrics_table, raw = run_experiment(seed=seed)
+
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    figure_path = figures_dir / "synthetic_regime_shift_drift.png"
     plot_results(
-        series=series,
-        times=times,
-        shift_index=shift_index,
-        drifts=drifts,
-        topological_drift=topo_drift,
-        output_path=output_path,
+        series=raw["series"],
+        times=raw["times"],
+        shift_index=raw["shift_index"],
+        drifts=raw["drifts"],
+        topological_drift=raw["topo_drift"],
+        output_path=figure_path,
     )
 
-    print(f"Saved figure to {output_path}")
+    metrics_path = figures_dir / "synthetic_regime_shift_metrics.csv"
+    metrics_table.to_csv(metrics_path, index_label="Method")
+
+    series, shift_index = raw["series"], raw["shift_index"]
+    print(f"Saved figure to {figure_path}")
+    print(f"Saved metrics to {metrics_path}")
     print(f"Shift index: {shift_index}")
     print("Mean/variance check:")
     print(f"  pre mean={series[:shift_index].mean():.4f}, pre var={series[:shift_index].var():.4f}")
     print(f"  post mean={series[shift_index:].mean():.4f}, post var={series[shift_index:].var():.4f}")
-
-    all_signals = {**drifts, "TAMC topological drift": topo_drift}
-    metrics_table = build_metrics_table(times, all_signals, shift_index)
     print("\nDetection metrics (threshold = pre_mean + 3*pre_std):")
     print(metrics_table.to_string(float_format=lambda v: f"{v:.4f}"))
+
+
+def run_multi_seed(n_seeds: int, figures_dir: Path) -> None:
+    tables = []
+    for seed in range(n_seeds):
+        metrics_table, _ = run_experiment(seed=seed)
+        metrics_table.index.name = "Method"
+        tables.append(metrics_table.assign(Seed=seed))
+
+    combined = pd.concat(tables)
+    summary = combined.groupby("Method")[["AUROC", "Delay", "False Alarms", "Separation"]].agg(
+        ["mean", "std"]
+    )
+    summary.columns = [f"{metric} {stat}" for metric, stat in summary.columns]
+
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = figures_dir / "synthetic_regime_shift_multiseed_metrics.csv"
+    summary.to_csv(summary_path)
+
+    print(f"Ran {n_seeds} seeds (0..{n_seeds - 1})")
+    print(f"Saved multi-seed summary to {summary_path}")
+    print("\nMulti-seed detection metrics (mean +/- std):")
+    print(summary.to_string(float_format=lambda v: f"{v:.4f}"))
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--seed", type=int, default=0, help="Single-seed run (default: 0)."
+    )
+    parser.add_argument(
+        "--multi-seed",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Run seeds 0..N-1 and report mean +/- std detection metrics instead "
+        "of a single-seed figure run.",
+    )
+    args = parser.parse_args()
+
+    figures_dir = Path(__file__).resolve().parents[1] / "figures"
+
+    if args.multi_seed is not None:
+        run_multi_seed(args.multi_seed, figures_dir)
+    else:
+        run_single_seed(args.seed, figures_dir)
 
 
 if __name__ == "__main__":
