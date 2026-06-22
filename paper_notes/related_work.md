@@ -1,6 +1,6 @@
 # Related Work
 
-See [research_biref.md](research_biref.md) for full annotations, links, and the bibliography index. This file tracks the working map of neighboring work and how TAMC differs from each line.
+See [research_brief.md](research_brief.md) for full annotations, links, and the bibliography index. This file tracks the working map of neighboring work and how TAMC differs from each line.
 
 ## Forward-only and zeroth-order test-time adaptation
 
