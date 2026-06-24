@@ -373,10 +373,12 @@ def run_single_seed(
     )
 
     figures_dir.mkdir(parents=True, exist_ok=True)
-    figure_path = figures_dir / "real_data_controlled_shift.png"
+    figure_path = figures_dir / f"real_data_controlled_shift_{args.shift_type}.png"
     plot_results(raw, args.shift_type, figure_path)
 
-    metrics_path = figures_dir / "real_data_controlled_shift_metrics.csv"
+    metrics_path = (
+        figures_dir / f"real_data_controlled_shift_{args.shift_type}_metrics.csv"
+    )
     merged_metrics_table.to_csv(metrics_path, index=False)
 
     print(f"Saved figure to {figure_path}")
@@ -453,7 +455,10 @@ def run_multi_seed(
     merged_summary = summary.join(tradeoff_summary[tradeoff_csv_columns], on="Variant")
 
     figures_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = figures_dir / "real_data_controlled_shift_multiseed_metrics.csv"
+    summary_path = (
+        figures_dir
+        / f"real_data_controlled_shift_{args.shift_type}_multiseed_metrics.csv"
+    )
     merged_summary.to_csv(summary_path)
 
     print(
