@@ -26,6 +26,24 @@ Streaming signal → Delay-coordinate embedding → Sliding point cloud → Pers
 
 Early-stage research prototype.
 
+## Current Results
+
+- Stage 1 detection experiments (sine to quasi-periodic, logistic map,
+  Lorenz attractor) show that the TAMC topological drift signal is
+  competitive with, or better than, statistical (mean/variance),
+  autocorrelation, and spectral baselines on controlled synthetic and
+  dynamical-systems regime shifts.
+- TAMC-Lite forecast blending currently improves the adaptation tradeoff
+  on a sine-to-quasi-periodic forecasting task: a topology-gated blend
+  between a frozen forecaster and a forward-only adaptive forecaster
+  achieves the best Net Adaptation Score of any variant tested, by
+  preserving pre-shift accuracy better than an always-on blend while
+  matching its post-shift improvement.
+- This is still an early research prototype evaluated only on controlled
+  synthetic dynamical systems, not a final benchmarked method on real
+  data. See [paper_notes/research_brief.md, Section 19](paper_notes/research_brief.md#19-current-empirical-status)
+  for full numbers and current limitations.
+
 ## Environment
 
 This project uses [`uv`](https://docs.astral.sh/uv/) for Python version management, dependency locking, virtual environments, and command execution.

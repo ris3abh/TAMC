@@ -913,3 +913,82 @@ TAMC is not proposed as a generic topological time-series detector or a topology
 - Ripser.py: https://ripser.scikit-tda.org/
 - Persim: https://github.com/scikit-tda/persim
 - giotto-tda time-series topology tutorial: https://giotto-ai.github.io/gtda-docs/latest/notebooks/topology_time_series.html
+
+---
+
+## 19. Current Empirical Status
+
+This section is a running log of actual results from the repo, kept
+separate from the forward-looking roadmap above. All results are 10-seed
+means on controlled synthetic dynamical systems; full per-seed and
+multi-seed tables are in `figures/*_multiseed_metrics.csv`.
+
+### Stage 1: Detection results
+
+- **Sine to quasi-periodic** (`experiments/synthetic_regime_shift.py`):
+  TAMC (H1) AUROC 0.996 +/- 0.004, delay 11 steps, zero false alarms.
+  Cleanest result so far; the source regime's clean periodic loop is
+  exactly what H1 loop-tracking is suited to.
+- **Logistic map, hardened** (`experiments/logistic_map_shift.py`,
+  `r=3.45 -> r=3.75` with observation noise so the comparison isn't
+  trivial): TAMC (H0) AUROC 0.9998 +/- 0.0007, delay 3.8 steps, zero false
+  alarms — competitive with the strongest baselines (autocorrelation
+  0.9989 AUROC/6.2 delay; spectral 0.9997 AUROC/3.8 delay) and clearly
+  ahead of naive mean/variance drift (0.76/0.72 AUROC).
+- **Lorenz** (`experiments/lorenz_shift.py`, stable equilibrium `rho=20`
+  -> chaotic attractor `rho=28`): TAMC (H0) beats every baseline on every
+  axis — AUROC 0.964 vs autocorrelation 0.942 and spectral 0.949; delay
+  70.6 steps vs 113 and 117 respectively; zero false alarms; highest
+  separation (6.33) of all methods.
+- Across all three, the right homology dimension (H0 vs H1) tracked the
+  *shape* of the source regime's attractor rather than a fixed default —
+  see [methodology.md, Section 2](methodology.md#2-homology-dimension-choice-h0-vs-h1).
+
+### Stage 2/3: TAMC-Lite forecasting/adaptation result
+
+`experiments/tamc_lite_synthetic_forecast.py` (sine to quasi-periodic
+shift, `LinearARForecaster` frozen baseline):
+
+- **Simple residual adapters failed to net any benefit.**
+  `MeanShiftResidual` actively hurt pre-shift accuracy (it reacts to
+  within-cycle phase, not real drift) and never recovered post-shift.
+  `AnalogResidualAdapter` (k-NN over source-regime residuals) was
+  statistically indistinguishable from the frozen forecaster everywhere —
+  it had no capacity to express a correction larger than the (tiny)
+  in-sample fitting residual it was trained to memorize.
+- **Topology-gated forecast blending is the strongest current adaptation
+  result.** `TamicBlendPipeline` blends the frozen forecaster with a
+  forward-only adaptive forecaster (`RecentPatternForecaster`) under a
+  topological gate. 10-seed Net Adaptation Score: TAMC-gated blend
+  **0.0257** (best of all variants) vs always-on 50/50 blend 0.0119,
+  driven by preserving pre-shift accuracy (Pre Harm 0.0080 vs 0.0217)
+  while matching the always-on blend's post-shift gain (~0.0336 either
+  way).
+- **Caveat:** `Post Improvement %` is noisy across seeds (mean 0.30%, std
+  27% for the TAMC-gated blend) because it is a per-seed ratio with a
+  denominator (frozen post-shift MAE) that varies a lot seed-to-seed.
+  `Net Adaptation Score` should be the metric reported and compared, not
+  `Post Improvement %` in isolation. See
+  [methodology.md, Section 5](methodology.md#5-adaptation-tradeoff-metrics).
+
+### Current limitation
+
+Adaptation results so far establish that topology-gated *blending*
+between two full forecasts works where topology-gated *residual
+correction* did not, on one synthetic shift. This has not yet been tested
+on the logistic map or Lorenz shifts, on real data, or against any of the
+non-topological baselines listed in Section 9 (DynaTTA-style embedding
+drift, COSA-style output adapters, PETSA-style adapters). The forward-only
+adaptive forecaster itself (`RecentPatternForecaster`) is a simple,
+autocorrelation-lag-based heuristic, not a learned model.
+
+### Next step
+
+1. Run the topology-gated blend on the logistic map and Lorenz shifts to
+   check the result generalizes beyond the sine/quasi-periodic case.
+2. Move to real-data controlled perturbations (DynaTTA/TTFBench-style
+   trend, seasonality, and regime-shift injections on real series) rather
+   than only fully-synthetic dynamical systems.
+3. Replace `RecentPatternForecaster` with a stronger forward-only adaptive
+   forecaster, and benchmark the topology-gated blend against the
+   non-topological gates listed in Section 9.
