@@ -39,9 +39,17 @@ Early-stage research prototype.
   achieves the best Net Adaptation Score of any variant tested, by
   preserving pre-shift accuracy better than an always-on blend while
   matching its post-shift improvement.
+- The same topology-gated blend also has the best adaptation tradeoff on a
+  real series (ETTh1, `OT` column) under a controlled, injected
+  perturbation (`seasonality_break`) — ahead of three non-topological
+  baselines (autocorrelation-, spectral-, and mean/variance-gated)
+  compared under the identical gate control law, though the margin there
+  is modest, not dramatic.
 - This is still an early research prototype evaluated only on controlled
-  synthetic dynamical systems, not a final benchmarked method on real
-  data. See [paper_notes/research_brief.md, Section 19](paper_notes/research_brief.md#19-current-empirical-status)
+  synthetic dynamical systems and controlled, injected perturbations on
+  one real series — not yet tested on a naturally occurring real-world
+  regime shift, and not a final benchmarked method. See
+  [paper_notes/research_brief.md, Section 19](paper_notes/research_brief.md#19-current-empirical-status)
   for full numbers and current limitations.
 
 ## Environment

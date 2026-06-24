@@ -124,6 +124,25 @@ Every adapter implemented so far (`TamicLiteAdapter`, `TamicBlendPipeline`)
 follows this rule: `gate` only ever multiplies a correction or blends two
 existing forecasts.
 
+### Fair Comparison Against Non-Topological Gates
+
+`src/drift_gates.py::ScalarDriftSignal` implements the identical
+`history -> z(distance) -> sigmoid(z - threshold)` control law as
+`TamicSignal.drift_zscore`/`gate`, but decoupled from persistent homology
+so it can wrap *any* scalar drift score — mean/variance distance,
+autocorrelation distance, spectral distance, or anything else. Every
+non-topological baseline gate compared against TAMC
+(`experiments/real_data_controlled_shift.py`) is built this way.
+
+This matters methodologically: it means a TAMC-vs-baseline comparison
+tests *which drift signal is the better control input* — does topological
+distance produce a more useful gate than autocorrelation distance,
+holding the gate mechanism itself fixed — rather than conflating that
+question with *whose gate formula is implemented better*. Without this,
+a result favoring TAMC could always be explained away as "the topological
+gate just happens to be tuned/shaped differently," rather than as evidence
+about the drift signal itself.
+
 ## 4. TAMC-Lite Forecast Blending
 
 The strongest current adaptation result (Section 5 below, and

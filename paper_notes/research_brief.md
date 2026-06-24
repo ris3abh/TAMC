@@ -971,24 +971,71 @@ shift, `LinearARForecaster` frozen baseline):
   `Post Improvement %` in isolation. See
   [methodology.md, Section 5](methodology.md#5-adaptation-tradeoff-metrics).
 
+### Real-data controlled perturbation: ETTh1
+
+- **Dataset:** ETTh1, `OT` column. **Local file:** `data/ETTh1.csv` (never
+  downloaded by the script). **Experiment:**
+  `experiments/real_data_controlled_shift.py`.
+- **Shift types supported:** `amplitude`, `trend`, `noise`,
+  `seasonality_break`, `frequency_proxy` — deterministic, controlled
+  perturbations injected into the post-shift half only, after causal
+  (source-half-only) normalization.
+- **Main reported result:** `seasonality_break` (mixing the post-shift
+  segment with its reverse-time copy, which inverts the phase of any
+  recurrence structure). 10-seed Net Adaptation Score by gate:
+
+  | Gate | Net Adaptation Score |
+  |---|---|
+  | TAMC-gated blend | **0.0027** |
+  | Autocorrelation-gated | 0.0015 |
+  | Spectral-gated | -0.0003 |
+  | Mean/variance-gated | -0.0052 |
+  | Always-on 50/50 blend | -0.0305 |
+  | Adaptive recent-pattern alone | -0.1520 |
+
+- **Interpretation:** TAMC has the best adaptation tradeoff of every gate
+  tested on this real series, including the three non-topological gates
+  that use the identical z-scored-sigmoid control law (see
+  [methodology.md, Section 3](methodology.md#3-tamc-as-meta-control-not-an-additive-loss-term)),
+  but the margin is modest — 0.0027 vs. autocorrelation's 0.0015 is not a
+  large gap, unlike the much clearer separations seen in the synthetic
+  detection experiments.
+- **Caveat:** only the `noise` shift type is actually stochastic; the
+  other four (`amplitude`, `trend`, `seasonality_break`, `frequency_proxy`)
+  are fully deterministic given the input segment, so multi-seed runs on
+  them correctly show zero std across seeds — this is expected behavior,
+  not a sign the experiment didn't run.
+- **Caveat:** this is a *controlled, injected* perturbation on real data,
+  not a naturally occurring distribution shift. It establishes that the
+  method still functions and still wins on real (non-synthetic) values and
+  real (non-synthetic) noise characteristics, not that it would detect or
+  usefully gate adaptation to a real-world regime change that arises on
+  its own.
+
 ### Current limitation
 
 Adaptation results so far establish that topology-gated *blending*
 between two full forecasts works where topology-gated *residual
-correction* did not, on one synthetic shift. This has not yet been tested
-on the logistic map or Lorenz shifts, on real data, or against any of the
-non-topological baselines listed in Section 9 (DynaTTA-style embedding
-drift, COSA-style output adapters, PETSA-style adapters). The forward-only
-adaptive forecaster itself (`RecentPatternForecaster`) is a simple,
-autocorrelation-lag-based heuristic, not a learned model.
+correction* did not, and that this holds on one real series (ETTh1) in
+addition to the synthetic sine/quasi-periodic shift — though the real-data
+margin over the best non-topological gate is modest. This has not yet been
+tested on the logistic map or Lorenz shifts, on a *naturally occurring*
+real-world shift, or against the learned non-topological baselines listed
+in Section 9 (DynaTTA-style embedding drift, COSA-style output adapters,
+PETSA-style adapters) — the non-topological gates compared so far
+(mean/variance, autocorrelation, spectral) are hand-rolled drift scores
+under TAMC's own control law, not those papers' actual methods. The
+forward-only adaptive forecaster itself (`RecentPatternForecaster`) is a
+simple, autocorrelation-lag-based heuristic, not a learned model.
 
 ### Next step
 
 1. Run the topology-gated blend on the logistic map and Lorenz shifts to
    check the result generalizes beyond the sine/quasi-periodic case.
-2. Move to real-data controlled perturbations (DynaTTA/TTFBench-style
-   trend, seasonality, and regime-shift injections on real series) rather
-   than only fully-synthetic dynamical systems.
+2. Find or construct a naturally occurring real-world regime shift (not an
+   injected perturbation) to test whether the controlled-perturbation
+   result holds outside the controlled setting.
 3. Replace `RecentPatternForecaster` with a stronger forward-only adaptive
-   forecaster, and benchmark the topology-gated blend against the
-   non-topological gates listed in Section 9.
+   forecaster, and benchmark the topology-gated blend against the actual
+   learned non-topological baselines listed in Section 9 (DynaTTA, COSA,
+   PETSA), not just hand-rolled drift-score gates.
