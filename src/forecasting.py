@@ -27,6 +27,84 @@ class NaiveLastValueForecaster:
 
 
 @dataclass
+class RecentPatternForecaster:
+    """Forecasts by continuing the most recent observed local pattern.
+
+    Estimates a dominant lag from the context's autocorrelation (the first
+    local maximum beyond short-range smoothness, not the raw global
+    maximum, which is always near lag 0 for a smooth signal) and forecasts
+    via seasonal-naive-with-drift: it anchors at the current level and adds
+    the change the signal showed `horizon` steps after the same phase one
+    lag ago, rather than splicing in raw historical amplitude (which drifts
+    under amplitude/beat modulation in quasi-periodic signals). Falls back
+    to a simple continuation when no reliable periodic structure is found,
+    or when the detected lag is too short to support that continuation.
+    Uses only the given context: no labels, no future data, no gradient
+    updates.
+    """
+
+    horizon: int
+    min_lag: int = 4
+    max_lag: int | None = None
+    fallback: str = "last_value"
+    score_threshold: float = 0.3
+
+    def _dominant_lag(self, context: np.ndarray) -> int | None:
+        n = len(context)
+        max_lag = self.max_lag if self.max_lag is not None else n // 2
+        max_lag = min(max_lag, n - 1)
+        if max_lag < self.min_lag + 1:
+            return None
+
+        centered = context - context.mean()
+        denom = np.sum(centered**2)
+        if denom == 0:
+            return None
+
+        lags = np.arange(self.min_lag, max_lag + 1)
+        correlations = (
+            np.array([np.sum(centered[:-lag] * centered[lag:]) for lag in lags]) / denom
+        )
+
+        best_lag = None
+        best_score = 0.0
+        for i in range(1, len(correlations) - 1):
+            is_local_peak = (
+                correlations[i] > correlations[i - 1]
+                and correlations[i] > correlations[i + 1]
+            )
+            if is_local_peak and correlations[i] > best_score:
+                best_score = correlations[i]
+                best_lag = int(lags[i])
+
+        if best_lag is None or best_score < self.score_threshold:
+            return None
+        return best_lag
+
+    def _fallback_forecast(self, context: np.ndarray) -> np.ndarray:
+        if self.fallback == "linear":
+            x = np.arange(len(context))
+            slope, intercept = np.polyfit(x, context, 1)
+            future_x = np.arange(len(context), len(context) + self.horizon)
+            return slope * future_x + intercept
+        return np.full(self.horizon, context[-1])
+
+    def predict(self, context: np.ndarray) -> np.ndarray:
+        context = np.asarray(context, dtype=float)
+        lag = self._dominant_lag(context)
+        if lag is None or lag <= self.horizon:
+            return self._fallback_forecast(context)
+
+        last_value = context[-1]
+        reference = context[-(lag + 1)]
+        future_phase = context[-lag : -lag + self.horizon]
+        return last_value + (future_phase - reference)
+
+    def __call__(self, context: np.ndarray) -> np.ndarray:
+        return self.predict(context)
+
+
+@dataclass
 class LinearARForecaster:
     """Linear autoregressive forecaster fit once on source-regime data only.
 

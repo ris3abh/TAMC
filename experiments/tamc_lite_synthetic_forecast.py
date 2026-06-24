@@ -6,19 +6,24 @@ Goal:
     forecaster, without corrupting pre-shift performance the way an
     always-on residual adapter does.
 
-Compares five forecasting strategies on the same sine -> quasi-periodic
-regime shift used in synthetic_regime_shift.py:
-    1. frozen forecaster only (no adaptation)
-    2. always-on MeanShiftResidual (gate = 1 at every step)
-    3. TAMC-gated MeanShiftResidual (gate driven by topological drift)
-    4. always-on AnalogResidualAdapter (gate = 1 at every step)
-    5. TAMC-gated AnalogResidualAdapter (gate driven by topological drift)
+Compares eight forecasting strategies on the same sine -> quasi-periodic
+regime shift used in synthetic_regime_shift.py. The main comparison is the
+topology-gated forecast blend:
+    1. frozen forecaster alone (no adaptation)
+    2. adaptive recent-pattern forecaster alone
+    3. always-on 50/50 blend of frozen and adaptive
+    4. TAMC-gated blend (gate driven by topological drift)
+Plus the earlier residual-correction variants, kept for context:
+    5. always-on MeanShiftResidual
+    6. TAMC-gated MeanShiftResidual
+    7. always-on AnalogResidualAdapter
+    8. TAMC-gated AnalogResidualAdapter
 
-The forecaster (LinearARForecaster) is fit once on source/pre-shift data
-only and never updated; the AnalogResidualAdapter's source-memory bank is
-likewise built only from source/pre-shift supervised windows. Only the
-residual correction and its gate change at inference time (forward-only,
-no gradients, no post-shift labels used anywhere).
+The frozen forecaster (LinearARForecaster) is fit once on source/pre-shift
+data only and never updated; the AnalogResidualAdapter's source-memory bank
+is likewise built only from source/pre-shift supervised windows. The
+adaptive forecaster (RecentPatternForecaster) only ever sees the current
+context: no labels, no future data, no gradient updates, at any point.
 
 Run:
     uv run python experiments/tamc_lite_synthetic_forecast.py --seed 0
@@ -39,18 +44,22 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
 from adapters import AnalogResidualAdapter, MeanShiftResidual
 from delay_embedding import EmbeddingConfig
 from evaluation import mae, make_supervised_windows, rmse
-from forecasting import LinearARForecaster
-from tamc_pipeline import TamicLitePipeline
+from forecasting import LinearARForecaster, RecentPatternForecaster
+from tamc_pipeline import TamicBlendPipeline
 from tamic_signal import TamicSignal
 
 from synthetic_regime_shift import generate_sine_to_quasiperiodic
 
-CONTEXT_LENGTH = 32
+# CONTEXT_LENGTH matches TOPOLOGY_WINDOW so the adaptive forecaster's
+# autocorrelation-based lag search has enough room to resolve the signal's
+# ~50-sample period; a much shorter context cannot detect that lag at all.
+CONTEXT_LENGTH = 128
 HORIZON = 8
 TOPOLOGY_WINDOW = 128
 STRIDE = 4
 ANALOG_K = 5
 ANALOG_TEMPERATURE = 1.0
+ADAPTIVE_MIN_LAG = 4
 
 
 def run_experiment(seed: int) -> tuple[pd.DataFrame, dict]:
@@ -60,6 +69,10 @@ def run_experiment(seed: int) -> tuple[pd.DataFrame, dict]:
 
     forecaster = LinearARForecaster(context_length=CONTEXT_LENGTH, horizon=HORIZON)
     forecaster.fit(source_series, context_length=CONTEXT_LENGTH, horizon=HORIZON)
+
+    adaptive_forecaster = RecentPatternForecaster(
+        horizon=HORIZON, min_lag=ADAPTIVE_MIN_LAG
+    )
 
     config = EmbeddingConfig(dimension=3, delay=8, window=TOPOLOGY_WINDOW)
     signal = TamicSignal(config=config, max_dimension=1, drift_dimension=1)
@@ -83,10 +96,10 @@ def run_experiment(seed: int) -> tuple[pd.DataFrame, dict]:
     )
     analog_residual.fit(source_contexts, source_targets, source_base_predictions)
 
-    pipeline = TamicLitePipeline(
-        forecaster=forecaster,
+    blend_pipeline = TamicBlendPipeline(
+        frozen_forecaster=forecaster,
+        adaptive_forecaster=adaptive_forecaster,
         tamic_signal=signal,
-        residual_adapter=mean_shift_residual,
         context_length=CONTEXT_LENGTH,
         topology_window=TOPOLOGY_WINDOW,
         horizon=HORIZON,
@@ -99,9 +112,13 @@ def run_experiment(seed: int) -> tuple[pd.DataFrame, dict]:
     gates = []
     distances = []
     frozen_point = []
-    tamc_analog_point = []
+    adaptive_point = []
+    tamc_blend_point = []
     errors: dict[str, list[tuple[float, float]]] = {
         "Frozen forecaster": [],
+        "Adaptive recent-pattern forecaster": [],
+        "Always-on 50/50 blend": [],
+        "TAMC-gated blend": [],
         "Always-on MeanShiftResidual": [],
         "TAMC-gated MeanShiftResidual": [],
         "Always-on AnalogResidualAdapter": [],
@@ -114,30 +131,38 @@ def run_experiment(seed: int) -> tuple[pd.DataFrame, dict]:
         target = series[t : t + HORIZON]
 
         # One pipeline call advances the shared topology-monitor history and
-        # gives both the base forecast and the gate; the gate is reused for
-        # the analog variant below so topology is only ever scored once.
-        result = pipeline.predict(context, topology_window_values)
-        base_forecast = result["base_forecast"]
+        # gives the frozen/adaptive forecasts and the gate; the gate is
+        # reused for the residual variants below so topology is only ever
+        # scored once per step.
+        result = blend_pipeline.predict(context, topology_window_values)
+        frozen_forecast = result["frozen_forecast"]
+        adaptive_forecast = result["adaptive_forecast"]
         gate = result["gate"]
+        tamc_blend_forecast = result["blended_forecast"]
+        always_on_blend_forecast = 0.5 * frozen_forecast + 0.5 * adaptive_forecast
 
         mean_shift_correction = mean_shift_residual.correction(context)
         analog_correction = analog_residual.correction(context)
 
         forecasts = {
-            "Frozen forecaster": base_forecast,
-            "Always-on MeanShiftResidual": base_forecast + mean_shift_correction,
-            "TAMC-gated MeanShiftResidual": base_forecast
+            "Frozen forecaster": frozen_forecast,
+            "Adaptive recent-pattern forecaster": adaptive_forecast,
+            "Always-on 50/50 blend": always_on_blend_forecast,
+            "TAMC-gated blend": tamc_blend_forecast,
+            "Always-on MeanShiftResidual": frozen_forecast + mean_shift_correction,
+            "TAMC-gated MeanShiftResidual": frozen_forecast
             + gate * mean_shift_correction,
-            "Always-on AnalogResidualAdapter": base_forecast + analog_correction,
-            "TAMC-gated AnalogResidualAdapter": base_forecast
+            "Always-on AnalogResidualAdapter": frozen_forecast + analog_correction,
+            "TAMC-gated AnalogResidualAdapter": frozen_forecast
             + gate * analog_correction,
         }
 
         times.append(t)
         gates.append(gate)
         distances.append(result["topological_distance"])
-        frozen_point.append(base_forecast[0])
-        tamc_analog_point.append(forecasts["TAMC-gated AnalogResidualAdapter"][0])
+        frozen_point.append(frozen_forecast[0])
+        adaptive_point.append(adaptive_forecast[0])
+        tamc_blend_point.append(tamc_blend_forecast[0])
 
         for variant_name, forecast in forecasts.items():
             errors[variant_name].append((mae(target, forecast), rmse(target, forecast)))
@@ -168,7 +193,8 @@ def run_experiment(seed: int) -> tuple[pd.DataFrame, dict]:
         "gates": np.array(gates),
         "distances": np.array(distances),
         "frozen_point": np.array(frozen_point),
-        "tamc_point": np.array(tamc_analog_point),
+        "adaptive_point": np.array(adaptive_point),
+        "tamc_point": np.array(tamc_blend_point),
     }
     return metrics_table, raw
 
@@ -185,11 +211,9 @@ def plot_results(raw: dict, output_path: Path) -> None:
     axes[0].plot(np.arange(len(series)), series, alpha=0.5, label="True series")
     axes[0].plot(times, raw["frozen_point"], "--", label="Frozen forecast")
     axes[0].plot(
-        times,
-        raw["tamc_point"],
-        "--",
-        label="TAMC-gated AnalogResidualAdapter forecast",
+        times, raw["adaptive_point"], "--", label="Adaptive recent-pattern forecast"
     )
+    axes[0].plot(times, raw["tamc_point"], "--", label="TAMC-gated blend forecast")
     axes[0].axvline(shift_index, linestyle=":", color="black")
     axes[0].set_ylabel("Value")
     axes[0].set_title("TAMC-Lite forecasting adaptation: sine to quasi-periodic shift")

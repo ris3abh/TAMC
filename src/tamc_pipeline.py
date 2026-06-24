@@ -72,3 +72,59 @@ class TamicLitePipeline:
             "topological_distance": score.distance,
             "prototype_label": score.prototype_label,
         }
+
+
+@dataclass
+class TamicBlendPipeline:
+    """Topology-gated blend of a frozen forecaster and an adaptive forecaster.
+
+        forecast = (1 - gate) * frozen_forecast + gate * adaptive_forecast
+
+    Unlike TamicLitePipeline (which gates an additive residual), this gates
+    a blend between two full forecasts: a source-trained frozen forecaster
+    and a forward-only adaptive forecaster that only ever sees the current
+    context (no labels, no future data, no gradient updates). `gate` still
+    comes from TamicSignal.gate(...) and only ever multiplies/blends; it is
+    never added as a term in an optimization objective.
+    """
+
+    frozen_forecaster: Forecaster
+    adaptive_forecaster: Forecaster
+    tamic_signal: TamicSignal
+    context_length: int
+    topology_window: int
+    horizon: int
+    gate_threshold: float = 2.0
+    min_history: int = 8
+
+    def predict(self, context: np.ndarray, topology_window_values: np.ndarray) -> dict:
+        """Run one forward-only TAMC-Blend prediction step.
+
+        `context` (length `context_length`) feeds both forecasters;
+        `topology_window_values` (length `topology_window`) feeds the
+        topological drift monitor.
+        """
+        frozen_forecast = np.asarray(
+            self.frozen_forecaster.predict(context), dtype=float
+        )
+        adaptive_forecast = np.asarray(
+            self.adaptive_forecaster.predict(context), dtype=float
+        )
+
+        score = self.tamic_signal.score_window(topology_window_values)
+        gate = self.tamic_signal.gate(
+            score.distance,
+            threshold=self.gate_threshold,
+            min_history=self.min_history,
+        )
+
+        blended_forecast = (1.0 - gate) * frozen_forecast + gate * adaptive_forecast
+
+        return {
+            "frozen_forecast": frozen_forecast,
+            "adaptive_forecast": adaptive_forecast,
+            "blended_forecast": blended_forecast,
+            "gate": gate,
+            "topological_distance": score.distance,
+            "prototype_label": score.prototype_label,
+        }
