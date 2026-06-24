@@ -46,12 +46,18 @@ def minmax(x: np.ndarray) -> np.ndarray:
 
 def generate_logistic_map_regime_shift(
     n_per_regime: int = 700,
-    r_source: float = 3.2,
-    r_shifted: float = 3.9,
+    r_source: float = 3.45,
+    r_shifted: float = 3.75,
     burn_in: int = 200,
+    noise_std: float = 0.02,
     seed: int = 0,
 ) -> tuple[np.ndarray, int]:
-    """Generate periodic-to-chaotic logistic map shift with matched mean/variance."""
+    """Generate periodic-to-chaotic logistic map shift with matched mean/variance.
+
+    Observation noise is added before normalization so pre-shift windows are
+    not bit-identical; otherwise pre_std collapses to 0 and every detector
+    (not just TAMC) trivially achieves perfect AUROC.
+    """
     rng = np.random.default_rng(seed)
 
     def simulate(r: float, n: int, x0: float) -> np.ndarray:
@@ -67,6 +73,9 @@ def generate_logistic_map_regime_shift(
 
     regime_1 = simulate(r_source, n_per_regime, x0_a)
     regime_2 = simulate(r_shifted, n_per_regime, x0_b)
+
+    regime_1 = regime_1 + rng.normal(0, noise_std, size=n_per_regime)
+    regime_2 = regime_2 + rng.normal(0, noise_std, size=n_per_regime)
 
     regime_1 = zscore(regime_1)
     regime_2 = zscore(regime_2)
