@@ -1045,15 +1045,24 @@ Adaptation results so far establish that topology-gated *blending*
 between two full forecasts works where topology-gated *residual
 correction* did not, and that this holds on one real series (ETTh1) in
 addition to the synthetic sine/quasi-periodic shift — though the real-data
-margin over the best non-topological gate is modest. This has not yet been
-tested on the logistic map or Lorenz shifts, on a *naturally occurring*
-real-world shift, or against the learned non-topological baselines listed
-in Section 9 (DynaTTA-style embedding drift, COSA-style output adapters,
-PETSA-style adapters) — the non-topological gates compared so far
-(mean/variance, autocorrelation, spectral) are hand-rolled drift scores
-under TAMC's own control law, not those papers' actual methods. The
-forward-only adaptive forecaster itself (`RecentPatternForecaster`) is a
-simple, autocorrelation-lag-based heuristic, not a learned model.
+margin over the best non-topological gate is modest. **Update:** the
+logistic-map and Lorenz forecast-adaptation gap below this is now
+resolved — see "Dynamical-system forecast adaptation" — with a mixed
+result (clear win on Lorenz, no help on logistic map, sine result
+nuanced). What remains untested is a *naturally occurring* real-world
+shift, and a benchmark against the learned non-topological baselines
+listed in Section 9 (DynaTTA-style embedding drift, COSA-style output
+adapters, PETSA-style adapters) — the non-topological gates compared so
+far (mean/variance, autocorrelation, spectral) are hand-rolled drift
+scores under TAMC's own control law, not those papers' actual methods.
+The forward-only adaptive forecasters themselves (`RecentPatternForecaster`,
+`RollingLinearARForecaster`) are simple heuristics, not learned models,
+and the dynamical-system results show this matters: **adapter inductive
+bias is now the main adaptation bottleneck**, not the gating mechanism.
+Topology decides *when* to trust an adaptive component; it cannot make a
+mismatched adaptive component good. Net adaptation benefit depends
+jointly on whether the shift is topologically detectable *and* on whether
+the gated adaptive forecaster actually fits the post-shift dynamics.
 
 ### Next step
 

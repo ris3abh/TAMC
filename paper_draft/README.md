@@ -52,10 +52,11 @@ search the draft for `TODO`.
   figures alone.
 - Add formal citations (BibTeX) for the related-work links currently only
   listed by name/URL in `paper_notes/research_brief.md`.
-- Run the additional experiments flagged as limitations in the draft
-  (logistic map / Lorenz forecast adaptation, a naturally occurring
-  real-world shift, direct DynaTTA/COSA/PETSA baselines) before claiming
-  anything beyond what is currently reported.
+- Interpret and polish the mixed dynamical forecast-adaptation results
+  (logistic map / Lorenz, now run — see `paper_notes/research_brief.md`,
+  "Dynamical-system forecast adaptation"); next experimental priorities
+  are a naturally occurring real-world shift and direct DynaTTA/COSA/PETSA
+  baselines, before claiming anything beyond what is currently reported.
 - Convert to LaTeX once the prose and figures are stable; the draft is
   written with that conversion in mind (no Markdown-specific formatting
   that wouldn't translate, plain text math notation throughout).
