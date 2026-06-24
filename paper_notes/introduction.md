@@ -95,8 +95,11 @@ for full numbers):
 
 - **Sine to quasi-periodic** (clean periodic loop -> added incommensurate
   frequency): TAMC AUROC 0.996 +/- 0.004, delay 11 steps, zero false
-  alarms — the cleanest result, and the case TAMC's H1 loop-tracking is
-  best suited to.
+  alarms — the cleanest result. H1 loop-tracking is intuitively motivated
+  here, but the later topology ablation
+  (`experiments/topology_ablation.py`) shows H0 is actually the more
+  robust default across the tested delay/window grid, including on this
+  system; see [methodology.md, Section 2](methodology.md#2-homology-dimension-choice-h0-vs-h1).
 - **Logistic map** (periodic-ish, `r=3.45` -> chaotic, `r=3.75`): TAMC is
   competitive with the strongest baselines (autocorrelation, spectral) on
   AUROC and delay, and clearly beats naive mean/variance drift detection

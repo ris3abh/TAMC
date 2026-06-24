@@ -51,6 +51,15 @@ Early-stage research prototype.
   far less stable on Lorenz's compact-to-chaotic transition. This revises
   an earlier, weaker claim that was based on one hand-picked dimension
   per system rather than a full sweep.
+- A runtime benchmark quantifies TAMC's compute cost honestly: at
+  window=192, computing TAMC's topological drift takes roughly four
+  orders of magnitude longer per window than spectral or autocorrelation
+  drift (~13,000x and ~2,300x respectively), and the gap grows steeply
+  with window size since persistent homology scales poorly with
+  point-cloud size. At the smaller windows (<=128) used throughout this
+  repo's detection experiments, the absolute cost is still small (tens of
+  milliseconds per window), but this would not scale to large windows or
+  per-step scoring without further optimization.
 - This is still an early research prototype evaluated only on controlled
   synthetic dynamical systems and controlled, injected perturbations on
   one real series — not yet tested on a naturally occurring real-world

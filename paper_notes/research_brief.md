@@ -1122,3 +1122,45 @@ controlled detection systems used elsewhere in this repo:
   weaker claim in [methodology.md, Section 2](methodology.md#2-homology-dimension-choice-h0-vs-h1),
   which was based on one hand-picked dimension per system rather than a
   full sweep.
+
+### Runtime benchmark status
+
+`experiments/runtime_benchmark.py` measures the per-window compute cost of
+TAMC's topological drift (H0 and H1) against three non-topological
+baselines (mean/variance, autocorrelation, spectral), on the sine-to-
+quasi-periodic series, at window sizes 64/128/192 (`--stride 8`,
+`--max-windows 100`, `--n-repeat 3`). Persistence is computed once per
+window for both H0 and H1 (not duplicated), but each row's reported cost
+is the *full* standalone persistence cost plus that dimension's own
+Wasserstein-distance call -- matching how `TamicSignal` is actually used
+elsewhere in this repo (one fixed `drift_dimension`, no sharing across
+dimensions), not an artificially halved "shared" cost. Outputs:
+`figures/runtime_benchmark_metrics.csv` (per-repeat), `figures/runtime_benchmark_summary.csv`
+(mean/std over repeats), `figures/runtime_benchmark.png` (log-scale
+seconds-per-window vs. window size, one line per method).
+
+**Result (full default run, completed in ~70s):**
+
+| Window | TAMC H0 sec/window | TAMC H1 sec/window | Spectral sec/window | Autocorrelation sec/window | H0 vs. spectral | H0 vs. autocorrelation |
+|---|---|---|---|---|---|---|
+| 64 | 0.0049 | 0.0029 | 0.000013 | 0.000075 | 367.6x | 64.3x |
+| 128 | 0.0413 | 0.0396 | 0.000014 | 0.000077 | 3045.1x | 536.6x |
+| 192 | 0.1810 | 0.1746 | 0.000014 | 0.000078 | 13178.7x | 2320.0x |
+
+**Honest reading:** the non-topological baselines are essentially flat
+with window size (microseconds, dominated by fixed Python/NumPy overhead,
+not by the O(window) work itself). TAMC's cost grows steeply and
+roughly an order of magnitude per ~1.5x increase in window size, because
+Vietoris-Rips persistent homology scales poorly with point-cloud size --
+this is the real, dominant computational cost of TAMC, not an artifact of
+this benchmark's implementation. At window=192, computing TAMC H0 drift
+for one window takes ~181ms vs. ~14 microseconds for spectral drift: a
+~13,000x slowdown. This means TAMC is impractical at large windows or high
+update frequency without mitigation (sparser striding, smaller windows,
+edge-collapse/approximate persistence, or computing topology only every
+k steps -- see [Section 10, Risk 4](#risk-4-persistent-homology-is-expensive) above).
+At window<=128 with `stride=8` (the defaults used throughout this repo's
+detection experiments), the absolute cost is still small (tens of
+milliseconds per window), so the existing experiments remain practical,
+but this would not scale to windows in the many hundreds or to per-step
+(stride=1) scoring without further optimization.
