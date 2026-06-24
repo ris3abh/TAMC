@@ -1012,6 +1012,33 @@ shift, `LinearARForecaster` frozen baseline):
   usefully gate adaptation to a real-world regime change that arises on
   its own.
 
+**Stochastic robustness check (`noise` shift, std 0.35, 10 seeds):** since
+this is the only shift type that actually varies across seeds, it is the
+honest test of whether the `seasonality_break` result is robust rather
+than a lucky deterministic draw. 10-seed Net Adaptation Score (mean +/-
+std):
+
+| Gate | Net Adaptation Score |
+|---|---|
+| TAMC-gated blend | **0.0011 +/- 0.0015** |
+| Autocorrelation-gated | -0.0015 +/- 0.0017 |
+| Spectral-gated | -0.0018 +/- 0.0017 |
+| Mean/variance-gated | -0.0034 +/- 0.0021 |
+| Always-on 50/50 blend | -0.0394 +/- 0.0060 |
+| Adaptive recent-pattern alone | -0.1853 +/- 0.0152 |
+
+TAMC-gated blend has the highest mean and is the only gate with a
+*positive* mean Net Adaptation Score under pure noise — every other gated
+blend nets slightly harmful on average here. That said, this should not
+be oversold as a clean win: TAMC's mean (0.0011) is smaller than its own
+std (0.0015), so the result is not statistically distinguishable from
+zero. The honest reading is that under pure Gaussian noise, with no real
+structural shift for any drift signal to detect, no gate provides a
+robust net benefit, and TAMC is the least-bad / most net-neutral option
+rather than a clear winner. This is a genuine limitation, not a bug:
+topology (like the other drift signals tested) has nothing structural to
+latch onto when the "shift" is just added noise.
+
 ### Current limitation
 
 Adaptation results so far establish that topology-gated *blending*

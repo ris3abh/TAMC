@@ -1,5 +1,3 @@
-# TAMC
-
 # TAMC: Topological Attractor Meta-Control for Forward-Only Time-Series Test-Time Adaptation
 
 TAMC is a research prototype exploring whether persistent homology of delay-reconstructed streaming attractors can serve as a forward-only control signal for adapting time-series forecasting models under non-stationary distribution shift.
@@ -77,7 +75,7 @@ make notebook
 
 - `paper_notes/` — drafts and notes for the accompanying paper
 - `src/` — core implementation
-- `experiments/` — notebooks for experiments and demos
+- `experiments/` — reproducible experiment scripts and notebooks
 - `data/` — datasets (not tracked in git)
 - `figures/` — generated figures (not tracked in git)
 

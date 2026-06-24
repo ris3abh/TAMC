@@ -39,6 +39,7 @@ package = false
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+extend-exclude = ["*.ipynb"]
 
 [tool.black]
 line-length = 88
