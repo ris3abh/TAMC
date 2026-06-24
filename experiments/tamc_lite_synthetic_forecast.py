@@ -199,6 +199,32 @@ def run_experiment(seed: int) -> tuple[pd.DataFrame, dict]:
     return metrics_table, raw
 
 
+def compute_tradeoff_metrics(metrics_table: pd.DataFrame) -> pd.DataFrame:
+    """Per-variant adaptation tradeoff relative to the frozen forecaster.
+
+        pre_shift_harm = pre_mae_variant - pre_mae_frozen
+        post_shift_gain = post_mae_frozen - post_mae_variant
+        net_adaptation_score = post_shift_gain - pre_shift_harm
+        post_shift_improvement_pct = 100 * post_shift_gain / post_mae_frozen
+
+    `metrics_table` is the long-format (Variant, Segment, MAE, RMSE) table
+    for a single seed; returns one row per Variant. All four tradeoff
+    columns are exactly 0 for "Frozen forecaster" by construction.
+    """
+    pivot = metrics_table.pivot(index="Variant", columns="Segment", values="MAE")
+    pre_mae_frozen = pivot.loc["Frozen forecaster", "pre-shift"]
+    post_mae_frozen = pivot.loc["Frozen forecaster", "post-shift"]
+
+    tradeoff = pd.DataFrame(index=pivot.index)
+    tradeoff["Pre-shift MAE"] = pivot["pre-shift"]
+    tradeoff["Post-shift MAE"] = pivot["post-shift"]
+    tradeoff["Pre Harm"] = tradeoff["Pre-shift MAE"] - pre_mae_frozen
+    tradeoff["Post Gain"] = post_mae_frozen - tradeoff["Post-shift MAE"]
+    tradeoff["Net Adaptation Score"] = tradeoff["Post Gain"] - tradeoff["Pre Harm"]
+    tradeoff["Post Improvement %"] = 100.0 * tradeoff["Post Gain"] / post_mae_frozen
+    return tradeoff.reset_index()
+
+
 def plot_results(raw: dict, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -232,13 +258,25 @@ def plot_results(raw: dict, output_path: Path) -> None:
 
 def run_single_seed(seed: int, figures_dir: Path) -> None:
     metrics_table, raw = run_experiment(seed=seed)
+    tradeoff_table = compute_tradeoff_metrics(metrics_table)
+
+    tradeoff_columns = [
+        "Variant",
+        "Pre Harm",
+        "Post Gain",
+        "Net Adaptation Score",
+        "Post Improvement %",
+    ]
+    merged_metrics_table = metrics_table.merge(
+        tradeoff_table[tradeoff_columns], on="Variant", how="left"
+    )
 
     figures_dir.mkdir(parents=True, exist_ok=True)
     figure_path = figures_dir / "tamc_lite_synthetic_forecast.png"
     plot_results(raw, figure_path)
 
     metrics_path = figures_dir / "tamc_lite_synthetic_forecast_metrics.csv"
-    metrics_table.to_csv(metrics_path, index=False)
+    merged_metrics_table.to_csv(metrics_path, index=False)
 
     print(f"Saved figure to {figure_path}")
     print(f"Saved metrics to {metrics_path}")
@@ -246,14 +284,22 @@ def run_single_seed(seed: int, figures_dir: Path) -> None:
     print(
         "\nForecast error by variant and segment (pre-shift is in-sample for the AR fit):"
     )
-    print(metrics_table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+    print(
+        merged_metrics_table.to_string(index=False, float_format=lambda v: f"{v:.4f}")
+    )
+    print("\nAdaptation tradeoff vs frozen forecaster:")
+    print(tradeoff_table.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
 
 def run_multi_seed(n_seeds: int, figures_dir: Path) -> None:
     tables = []
+    tradeoff_tables = []
     for seed in range(n_seeds):
         metrics_table, _ = run_experiment(seed=seed)
         tables.append(metrics_table.assign(Seed=seed))
+        tradeoff_tables.append(
+            compute_tradeoff_metrics(metrics_table).assign(Seed=seed)
+        )
 
     combined = pd.concat(tables)
     summary = combined.groupby(["Variant", "Segment"])[["MAE", "RMSE"]].agg(
@@ -261,14 +307,48 @@ def run_multi_seed(n_seeds: int, figures_dir: Path) -> None:
     )
     summary.columns = [f"{metric} {stat}" for metric, stat in summary.columns]
 
+    # Tradeoff metrics are computed per (seed, variant) from the compact
+    # per-variant table, not from the long (Variant, Segment) format, so
+    # that the across-seed std isn't biased by each value appearing twice
+    # (once per segment row) before aggregation.
+    tradeoff_combined = pd.concat(tradeoff_tables)
+    tradeoff_value_columns = [
+        "Pre-shift MAE",
+        "Post-shift MAE",
+        "Pre Harm",
+        "Post Gain",
+        "Net Adaptation Score",
+        "Post Improvement %",
+    ]
+    tradeoff_summary = tradeoff_combined.groupby("Variant")[tradeoff_value_columns].agg(
+        ["mean", "std"]
+    )
+    tradeoff_summary.columns = [
+        f"{metric} {stat}" for metric, stat in tradeoff_summary.columns
+    ]
+
+    tradeoff_csv_columns = [
+        "Pre Harm mean",
+        "Pre Harm std",
+        "Post Gain mean",
+        "Post Gain std",
+        "Net Adaptation Score mean",
+        "Net Adaptation Score std",
+        "Post Improvement % mean",
+        "Post Improvement % std",
+    ]
+    merged_summary = summary.join(tradeoff_summary[tradeoff_csv_columns], on="Variant")
+
     figures_dir.mkdir(parents=True, exist_ok=True)
     summary_path = figures_dir / "tamc_lite_synthetic_forecast_multiseed_metrics.csv"
-    summary.to_csv(summary_path)
+    merged_summary.to_csv(summary_path)
 
     print(f"Ran {n_seeds} seeds (0..{n_seeds - 1})")
     print(f"Saved multi-seed summary to {summary_path}")
     print("\nMulti-seed forecast error by variant and segment (mean +/- std):")
-    print(summary.to_string(float_format=lambda v: f"{v:.4f}"))
+    print(merged_summary.to_string(float_format=lambda v: f"{v:.4f}"))
+    print("\nAdaptation tradeoff vs frozen forecaster (mean +/- std across seeds):")
+    print(tradeoff_summary.to_string(float_format=lambda v: f"{v:.4f}"))
 
 
 def main() -> None:
