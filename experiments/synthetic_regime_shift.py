@@ -302,8 +302,12 @@ def run_single_seed(seed: int, figures_dir: Path) -> None:
     print(f"Saved metrics to {metrics_path}")
     print(f"Shift index: {shift_index}")
     print("Mean/variance check:")
-    print(f"  pre mean={series[:shift_index].mean():.4f}, pre var={series[:shift_index].var():.4f}")
-    print(f"  post mean={series[shift_index:].mean():.4f}, post var={series[shift_index:].var():.4f}")
+    print(
+        f"  pre mean={series[:shift_index].mean():.4f}, pre var={series[:shift_index].var():.4f}"
+    )
+    print(
+        f"  post mean={series[shift_index:].mean():.4f}, post var={series[shift_index:].var():.4f}"
+    )
     print("\nDetection metrics (threshold = pre_mean + 3*pre_std):")
     print(metrics_table.to_string(float_format=lambda v: f"{v:.4f}"))
 
@@ -316,9 +320,9 @@ def run_multi_seed(n_seeds: int, figures_dir: Path) -> None:
         tables.append(metrics_table.assign(Seed=seed))
 
     combined = pd.concat(tables)
-    summary = combined.groupby("Method")[["AUROC", "Delay", "False Alarms", "Separation"]].agg(
-        ["mean", "std"]
-    )
+    summary = combined.groupby("Method")[
+        ["AUROC", "Delay", "False Alarms", "Separation"]
+    ].agg(["mean", "std"])
     summary.columns = [f"{metric} {stat}" for metric, stat in summary.columns]
 
     figures_dir.mkdir(parents=True, exist_ok=True)

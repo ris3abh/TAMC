@@ -51,6 +51,40 @@ class ResidualAdapter:
 
 
 @dataclass
+class MeanShiftResidual:
+    """Minimal residual model: corrects toward recent-context mean shift.
+
+    correction = scale * (mean(context) - source_mean) + bias, broadcast
+    across the forecast horizon. This is the simplest possible TAMC-Lite
+    residual: cheap, interpretable, and trivially forward-only (no
+    gradients, no stored optimizer state).
+    """
+
+    source_mean: float
+    horizon: int
+    params: np.ndarray = field(default_factory=lambda: np.array([1.0, 0.0]))
+
+    def correction(self, context: np.ndarray) -> np.ndarray:
+        context = np.asarray(context, dtype=float)
+        scale, bias = self.params
+        magnitude = scale * (context.mean() - self.source_mean) + bias
+        return np.full(self.horizon, magnitude)
+
+    def as_residual_adapter(self) -> "ResidualAdapter":
+        """Wrap as a generic ResidualAdapter for use with the Tamic*Adapter classes."""
+        source_mean = self.source_mean
+        horizon = self.horizon
+
+        def _correction_fn(context: np.ndarray, params: np.ndarray) -> np.ndarray:
+            context = np.asarray(context, dtype=float)
+            scale, bias = params
+            magnitude = scale * (context.mean() - source_mean) + bias
+            return np.full(horizon, magnitude)
+
+        return ResidualAdapter(correction_fn=_correction_fn, params=self.params)
+
+
+@dataclass
 class TamicLiteAdapter:
     """Topology-gated output adapter: y_hat_TAMC = y_hat + gate * residual_correction.
 

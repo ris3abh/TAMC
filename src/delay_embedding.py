@@ -79,9 +79,7 @@ def sliding_windows(series: np.ndarray, window: int, stride: int = 1) -> np.ndar
         raise ValueError("window larger than series length")
 
     n_windows = (series.shape[0] - window) // stride + 1
-    indices = (
-        np.arange(n_windows)[:, None] * stride + np.arange(window)[None, :]
-    )
+    indices = np.arange(n_windows)[:, None] * stride + np.arange(window)[None, :]
     return series[indices]
 
 

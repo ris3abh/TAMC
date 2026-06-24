@@ -60,9 +60,15 @@ class TamicSignal:
                 f"config.window {self.config.window}"
             )
         point_cloud = next(
-            iter(sliding_attractor_point_clouds(series, self.config, stride=self.config.window))
+            iter(
+                sliding_attractor_point_clouds(
+                    series, self.config, stride=self.config.window
+                )
+            )
         )
-        persistence = vietoris_rips_persistence(point_cloud, max_dimension=self.max_dimension)
+        persistence = vietoris_rips_persistence(
+            point_cloud, max_dimension=self.max_dimension
+        )
         diagrams = {
             dim: diagram_for_dimension(persistence, dim)
             for dim in range(self.max_dimension + 1)
@@ -72,22 +78,32 @@ class TamicSignal:
     def score_window(self, window: np.ndarray) -> DriftScore:
         """Score one raw-signal window against the closest stored source prototype."""
         if not self.prototypes:
-            raise RuntimeError("no source prototypes registered; call add_source_prototype first")
+            raise RuntimeError(
+                "no source prototypes registered; call add_source_prototype first"
+            )
         if window.shape[0] != self.config.window:
             raise ValueError(
                 f"window length {window.shape[0]} must equal config.window {self.config.window}"
             )
 
         point_cloud = next(
-            iter(sliding_attractor_point_clouds(window, self.config, stride=self.config.window))
+            iter(
+                sliding_attractor_point_clouds(
+                    window, self.config, stride=self.config.window
+                )
+            )
         )
-        persistence = vietoris_rips_persistence(point_cloud, max_dimension=self.max_dimension)
+        persistence = vietoris_rips_persistence(
+            point_cloud, max_dimension=self.max_dimension
+        )
         diagram = diagram_for_dimension(persistence, self.drift_dimension)
 
         best_distance = float("inf")
         best_label = self.prototypes[0].label
         for prototype in self.prototypes:
-            distance = wasserstein_distance(diagram, prototype.diagrams[self.drift_dimension])
+            distance = wasserstein_distance(
+                diagram, prototype.diagrams[self.drift_dimension]
+            )
             if distance < best_distance:
                 best_distance = distance
                 best_label = prototype.label
@@ -103,14 +119,20 @@ class TamicSignal:
         """
         if len(self.history) < min_history:
             return 0.0
-        baseline = np.array(self.history[:-1]) if self.history[-1] == distance else np.array(self.history)
+        baseline = (
+            np.array(self.history[:-1])
+            if self.history[-1] == distance
+            else np.array(self.history)
+        )
         mean = baseline.mean()
         std = baseline.std()
         if std == 0.0:
             return 0.0
         return float((distance - mean) / std)
 
-    def gate(self, distance: float, threshold: float = 2.0, min_history: int = 8) -> float:
+    def gate(
+        self, distance: float, threshold: float = 2.0, min_history: int = 8
+    ) -> float:
         """Smooth [0, 1] gate: ramps from 0 to 1 as drift z-score crosses threshold.
 
         Intended as `g_t` in TAMC-Lite (research brief section 7.1): multiplies

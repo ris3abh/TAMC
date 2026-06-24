@@ -11,7 +11,9 @@ import numpy as np
 
 try:
     import gudhi
-except ImportError as exc:  # pragma: no cover - dependency documented in requirements.txt
+except (
+    ImportError
+) as exc:  # pragma: no cover - dependency documented in requirements.txt
     raise ImportError(
         "gudhi is required for topology_metrics; install via requirements.txt"
     ) from exc
@@ -83,7 +85,9 @@ def persistence_lifetimes(
 
 
 def total_persistence(
-    persistence: list[tuple[int, tuple[float, float]]], dimension: int, power: float = 1.0
+    persistence: list[tuple[int, tuple[float, float]]],
+    dimension: int,
+    power: float = 1.0,
 ) -> float:
     """Sum of lifetime^power for one homology dimension."""
     lifetimes = persistence_lifetimes(persistence, dimension)
@@ -134,7 +138,9 @@ def bottleneck_distance(diagram_a: np.ndarray, diagram_b: np.ndarray) -> float:
     return float(gudhi.bottleneck_distance(diagram_a, diagram_b))
 
 
-def wasserstein_distance(diagram_a: np.ndarray, diagram_b: np.ndarray, order: int = 2) -> float:
+def wasserstein_distance(
+    diagram_a: np.ndarray, diagram_b: np.ndarray, order: int = 2
+) -> float:
     """Wasserstein distance between two persistence diagrams via persim.
 
     `order` is accepted for API stability but persim's wasserstein() (0.3.x)
