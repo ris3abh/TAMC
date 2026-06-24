@@ -91,6 +91,7 @@ make notebook
 ## Repository structure
 
 - `paper_notes/` — drafts and notes for the accompanying paper
+- `paper_draft/` — first workshop-style manuscript draft
 - `src/` — core implementation
 - `experiments/` — reproducible experiment scripts and notebooks
 - `data/` — datasets (not tracked in git)
