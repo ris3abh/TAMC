@@ -157,7 +157,9 @@ post_improvement_pct = 100 * post_gain / MAE_post_frozen
 | | Rolling mean | 0.8793 | 61.4 | 0.0 | 5.7 |
 | | Rolling variance | 0.6259 | 186.0 | 0.0 | 1.4 |
 
-TAMC's topological drift is the best or tied-for-best AUROC on every system, has zero false alarms throughout, and on Lorenz beats every baseline on every reported axis (AUROC, delay, separation). On the logistic map, TAMC, spectral, and autocorrelation are all near-ceiling on AUROC (>= 0.999), with TAMC and spectral tied on delay; spectral's much larger separation value reflects scale, not better discrimination (AUROC and delay are the metrics we treat as primary). On all three systems, naive mean/variance drift is clearly the weakest method. The homology dimension used per system (H1 for sine, H0 for logistic map and Lorenz) reflects which dimension was hand-picked at the time; Section 6.1 reports what happens when both dimensions are swept systematically.
+These are the original per-system detection runs, not the ablation-selected best configurations; the later ablation (Section 6.1) shows that H0 is the more robust default across the full tested delay/window grid, including on the sine system reported here with H1.
+
+TAMC's topological drift is the best or tied-for-best AUROC on every system, has zero false alarms throughout, and on Lorenz beats every baseline on every reported axis (AUROC, delay, separation). On the logistic map, TAMC, spectral, and autocorrelation are all near-ceiling on AUROC (>= 0.999), with TAMC and spectral tied on delay; spectral's much larger separation value reflects scale, not better discrimination (AUROC and delay are the metrics we treat as primary). On all three systems, naive mean/variance drift is clearly the weakest method.
 
 ### 5.2 TAMC-Lite Forecast Adaptation
 
@@ -260,6 +262,15 @@ We group related work by category rather than provide exhaustive per-paper prose
 - **The pure-noise adaptation result is weak and not statistically significant.** Under pure Gaussian noise (Section 5.3), TAMC's mean Net Adaptation Score is smaller than its own standard deviation; topology should not be read as a generic noise-robustness mechanism.
 - **No direct implementation of, or comparison against, DynaTTA, COSA, or PETSA.** The non-topological gates compared in Section 5.3 are hand-rolled drift scores (mean/variance, autocorrelation, spectral) under TAMC's own control law, not those papers' actual published methods.
 - **No foundation-model backbone yet.** All frozen forecasters used here (`LinearARForecaster`, `NaiveLastValueForecaster`) are small, classical models; TimesFM/Chronos/MOMENT/Timer-scale backbones are noted as later-stage candidates in `paper_notes/related_work.md` but not yet exercised.
+
+### Current Missing Experiments
+
+As a concrete, checkable list of what has *not* been run yet, separate from the framing limitations above:
+
+- No naturally occurring real-world regime shift has been tested — only synthetic shifts and one real series (ETTh1) under a controlled, injected perturbation.
+- No direct implementation of, or benchmark against, DynaTTA, COSA, or PETSA (Section 8) — only hand-rolled non-topological gates (mean/variance, autocorrelation, spectral) under TAMC's own control law.
+- No learned or foundation-model forecaster backbone (TimesFM, Chronos, MOMENT, Timer) — only classical/linear frozen forecasters (`LinearARForecaster`, `NaiveLastValueForecaster`).
+- TAMC-Lite forecast blending (Section 5.2) has only been run on the sine-to-quasi-periodic task; it has not yet been tested on the logistic-map or Lorenz forecast-adaptation settings used for detection in Section 5.1.
 
 ## 10. Conclusion
 
