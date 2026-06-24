@@ -43,6 +43,14 @@ Early-stage research prototype.
   baselines (autocorrelation-, spectral-, and mean/variance-gated)
   compared under the identical gate control law, though the margin there
   is modest, not dramatic.
+- A systematic ablation over homology dimension (H0 vs H1), embedding
+  delay, and topology window size, across all three detection systems,
+  shows H0 as the more robust default everywhere tested — H1 is
+  competitive on loop-like attractors (sine, logistic map) but never
+  clearly better and has its own failure modes, and is both weaker and
+  far less stable on Lorenz's compact-to-chaotic transition. This revises
+  an earlier, weaker claim that was based on one hand-picked dimension
+  per system rather than a full sweep.
 - This is still an early research prototype evaluated only on controlled
   synthetic dynamical systems and controlled, injected perturbations on
   one real series — not yet tested on a naturally occurring real-world

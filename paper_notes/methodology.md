@@ -85,11 +85,32 @@ on the *shape* of the source regime's attractor, not on a fixed default:
   multi-lobe post-shift point cloud (10-seed AUROC 0.964, beating both
   autocorrelation and spectral baselines).
 
-**Takeaway:** the homology dimension is itself a modeling choice that
-should match the source regime's attractor shape — loopy source regimes
-favor H1, compact/non-loopy source regimes favor H0. TAMC does not assume
-one dimension works universally; this is reported as an empirical finding,
-not a free design parameter to be silently fixed.
+**Original takeaway (single hand-picked dimension per system):** the
+homology dimension is itself a modeling choice that should match the
+source regime's attractor shape — loopy source regimes favor H1,
+compact/non-loopy source regimes favor H0.
+
+**Revised takeaway, after running the full ablation
+(`experiments/topology_ablation.py`, 10 seeds x 5 delays x 2 windows per
+system; see [research_brief.md, Section 19](research_brief.md#19-current-empirical-status)
+for the complete numbers):** this is only half right. The systematic
+sweep shows **H0 is the more robust default across the entire grid for
+all three systems**, including the two loop-like ones — it is uniformly
+high (AUROC >= 0.994 everywhere for sine and logistic map; 0.91-0.98 for
+Lorenz) and low-variance. H1 is competitive with H0 on the loop-like
+systems for most of the grid (occasionally a hair ahead on one cell) but
+is never clearly better, and has a real failure mode H0 does not share
+(sine's H1 AUROC collapses to 0.857 at `delay=12, window=64`, while H0
+stays at 0.994 in that same cell). The Lorenz half of the original claim
+holds strongly under the ablation: H0 clearly and consistently beats H1
+there, and H1 is also far more seed-to-seed unstable on Lorenz (std up to
+0.33). So: H0 is a safe default everywhere tested; H1 is worth trying on
+loop-like attractors but should not be assumed superior, and is
+unreliable on compact-to-chaotic transitions like Lorenz's. TAMC does not
+assume one dimension works universally; this is reported as an empirical
+finding, not a free design parameter to be silently fixed, and the
+correction above is itself evidence for why an ablation — not a
+single-run anecdote — is needed before asserting which dimension "wins."
 
 ## 3. TAMC as Meta-Control, Not an Additive Loss Term
 

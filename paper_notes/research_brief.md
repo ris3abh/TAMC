@@ -1066,3 +1066,59 @@ simple, autocorrelation-lag-based heuristic, not a learned model.
    forecaster, and benchmark the topology-gated blend against the actual
    learned non-topological baselines listed in Section 9 (DynaTTA, COSA,
    PETSA), not just hand-rolled drift-score gates.
+
+### Topology ablation status
+
+`experiments/topology_ablation.py` is a dedicated ablation (not a
+leaderboard) over three topological modeling choices, across all three
+controlled detection systems used elsewhere in this repo:
+
+- **What was swept:** homology dimension (H0 vs H1), embedding delay
+  (default `2, 4, 6, 8, 12`), and topology window size (default `64, 128`;
+  `192` is supported via `--windows` but excluded from the default grid to
+  keep the default 10-seed run's persistent-homology call count
+  manageable). Embedding dimension is held fixed at 3 by default. All
+  three systems (`sine_quasiperiodic`, `logistic_map`, `lorenz`) use their
+  existing causal generators and `detection_metrics` definitions
+  unchanged — no system-specific tuning was introduced for this ablation.
+- **Why:** Sections 2 of [methodology.md](methodology.md#2-homology-dimension-choice-h0-vs-h1)
+  and this section's earlier detection results report H0-vs-H1 as a
+  *post-hoc* observation from picking one dimension per system. This
+  ablation runs the full grid honestly, so that claim can be checked
+  systematically rather than asserted from three single data points.
+- **Where outputs are saved:** `figures/topology_ablation_metrics.csv`
+  (long-format, one row per system/seed/drift-dimension/delay/window),
+  `figures/topology_ablation_summary.csv` (grouped mean/std over seeds),
+  and `figures/topology_ablation_heatmap.png` (one AUROC-mean heatmap per
+  system x drift-dimension, delay on the x-axis, window on the y-axis).
+- **Status:** the full default grid (10 seeds x 3 systems x 2 dimensions x
+  5 delays x 2 windows = 600 rows) ran to completion in 1227.8s (~20.5
+  min). 10-seed AUROC mean +/- std, summarized from
+  `figures/topology_ablation_summary.csv`:
+
+  | System | H0 range | H1 range |
+  |---|---|---|
+  | sine_quasiperiodic | 0.9945-0.9984 (std <= 0.005) | 0.857-0.996 (one cell collapses) |
+  | logistic_map | 0.9991-0.9998 (std <= 0.0025) | 0.984-0.996 (std up to 0.013) |
+  | lorenz | 0.913-0.982 (std up to 0.13 at the worst cell) | 0.516-0.801 (std 0.20-0.33 throughout) |
+
+  **Honest finding, and a correction to the earlier single-data-point
+  claim:** the systematic sweep does *not* cleanly support "H1 is
+  strongest for loop-like periodic/quasi-periodic attractors." H0 is
+  uniformly excellent and low-variance across the *entire* grid for all
+  three systems, including the two loop-like ones. H1 is competitive with
+  H0 on most of the sine/logistic-map grid (sometimes a hair ahead on an
+  individual cell) but is not clearly better anywhere, and it has a real
+  failure mode H0 does not share: at `delay=12, window=64`, sine's H1
+  AUROC collapses to 0.857 +/- 0.031 while H0 stays at 0.994 +/- 0.004 in
+  that same cell. For Lorenz, the original claim holds strongly: H0
+  (0.91-0.98) clearly and consistently beats H1 (0.52-0.80), and H1 is
+  also far more unstable across seeds there (std up to 0.33, vs H0's
+  worst-case 0.13). The revised, ablation-supported claim is: **H0 is the
+  more robust default across all three systems and the full delay/window
+  grid tested; H1 can match it on loop-like attractors but is never
+  clearly better and has its own failure modes, and is unreliable on
+  Lorenz's compact-to-chaotic transition.** This replaces the earlier,
+  weaker claim in [methodology.md, Section 2](methodology.md#2-homology-dimension-choice-h0-vs-h1),
+  which was based on one hand-picked dimension per system rather than a
+  full sweep.
