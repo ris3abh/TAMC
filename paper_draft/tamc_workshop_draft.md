@@ -56,7 +56,7 @@ Given this setup, the open question is *how* to decide when and how much output-
 
 ## 3. Method
 
-[Figure 1: TAMC pipeline schematic — TODO]
+[Figure 1: TAMC pipeline schematic — see figures/paper_pipeline_schematic.png]
 
 ### 3.1 Delay-Reconstructed Attractor Windows
 
@@ -135,7 +135,7 @@ post_improvement_pct = 100 * post_gain / MAE_post_frozen
 
 ### 5.1 Controlled Dynamical-System Detection
 
-[Figure 2: Detection curves from synthetic/logistic/Lorenz — TODO]
+[Figure 2: Detection AUROC summary — see figures/paper_detection_summary.png]
 
 10-seed results (mean +/- std where reported; full tables in `figures/synthetic_regime_shift_multiseed_metrics.csv`, `figures/logistic_map_shift_multiseed_metrics.csv`, `figures/lorenz_shift_multiseed_metrics.csv`):
 
@@ -163,7 +163,7 @@ TAMC's topological drift is the best or tied-for-best AUROC on every system, has
 
 ### 5.2 TAMC-Lite Forecast Adaptation
 
-[Figure 3: Forecast adaptation tradeoff — TODO]
+[Figure 3: Forecast adaptation tradeoff summary — see figures/paper_adaptation_tradeoff.png]
 
 10-seed results on the synthetic sine-to-quasi-periodic forecast task (`figures/tamc_lite_synthetic_forecast_multiseed_metrics.csv`):
 
@@ -181,6 +181,8 @@ TAMC's topological drift is the best or tied-for-best AUROC on every system, has
 The TAMC-gated blend has the best Net Adaptation Score of every variant tested: it matches the always-on blend's post-shift gain (~0.034 either way) while incurring much less pre-shift harm (0.008 vs. 0.022). The two additive residual adapters are reported as a genuine negative result, not omitted: `MeanShiftResidual` actively hurts pre-shift accuracy (it reacts to within-cycle phase, not real drift) and never recovers post-shift, regardless of gating; `AnalogResidualAdapter` is statistically indistinguishable from the frozen forecaster everywhere, because it has no capacity to express a correction larger than the (tiny) in-sample fitting residual it memorizes from the source regime. Adapting via residual correction failed on this task; adapting via gated blending between two full forecasts worked.
 
 #### Extension to logistic-map and Lorenz forecast adaptation
+
+[Figure 6: Dynamical forecast adaptation summary — see figures/paper_dynamical_adaptation_summary.png]
 
 `experiments/dynamical_forecast_adaptation.py` repeats the comparison on `logistic_map` and `lorenz` (same causal generators as Section 5.1), adding a second standalone adaptive forecaster, `RollingLinearARForecaster` (refits a small ridge-regularized AR model from the current context window alone at every prediction call), and gating both adaptive forecasters with TAMC as well as with mean/variance-, autocorrelation-, and spectral-drift under the identical control law from Section 3.3. 10-seed results (full table in `figures/dynamical_forecast_adaptation_tradeoff_summary.csv`):
 
@@ -228,7 +230,7 @@ Both real-data results are controlled, injected perturbations on a real series, 
 
 ### 6.1 Homology Dimension, Delay, and Window Size
 
-[Figure 4: Topology ablation heatmap — see figures/topology_ablation_heatmap.png]
+[Figure 4: Topology ablation heatmap — see figures/paper_ablation_heatmap.png]
 
 The detection results in Section 5.1 each used one homology dimension hand-picked per system (H1 for sine, H0 for logistic map and Lorenz), motivated post hoc by which dimension seemed to fit each system's attractor shape. `experiments/topology_ablation.py` checks this systematically: 10 seeds x 3 systems x 2 homology dimensions (H0, H1) x 5 delays (2, 4, 6, 8, 12) x 2 window sizes (64, 128) = 600 runs, with embedding dimension fixed at 3 and no system-specific tuning introduced for the ablation. The grid ran to completion in 1227.8 seconds (~20.5 minutes); full results in `figures/topology_ablation_summary.csv`.
 
@@ -242,7 +244,7 @@ The detection results in Section 5.1 each used one homology dimension hand-picke
 
 ## 7. Runtime Analysis
 
-[Figure 5: Runtime benchmark — see figures/runtime_benchmark.png]
+[Figure 5: Runtime benchmark — see figures/paper_runtime_summary.png]
 
 `experiments/runtime_benchmark.py` measures per-window wall-clock cost (`time.perf_counter()`, 3 repeats, mean reported) for TAMC's H0 and H1 drift against the three non-topological baselines, on the sine-to-quasi-periodic series, at window sizes 64/128/192 (stride 8, 100 windows, embedding dimension 3, delay 8). Persistence is computed once per window for both H0 and H1 (not duplicated), but each method's reported cost is its full standalone cost — matching how the drift signal is actually used elsewhere in this work, with one fixed homology dimension and no cost-sharing across dimensions — not an artificially halved "shared" figure.
 
