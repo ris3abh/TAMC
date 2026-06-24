@@ -1057,15 +1057,96 @@ simple, autocorrelation-lag-based heuristic, not a learned model.
 
 ### Next step
 
-1. Run the topology-gated blend on the logistic map and Lorenz shifts to
-   check the result generalizes beyond the sine/quasi-periodic case.
+1. ~~Run the topology-gated blend on the logistic map and Lorenz shifts to
+   check the result generalizes beyond the sine/quasi-periodic case.~~ Done
+   -- see "Dynamical-system forecast adaptation" below. Result is mixed:
+   generalizes (and wins) on Lorenz, fails to help on logistic map, and
+   complicates rather than confirms the original sine-only story once a
+   wider variant set is tried there.
 2. Find or construct a naturally occurring real-world regime shift (not an
    injected perturbation) to test whether the controlled-perturbation
    result holds outside the controlled setting.
 3. Replace `RecentPatternForecaster` with a stronger forward-only adaptive
    forecaster, and benchmark the topology-gated blend against the actual
    learned non-topological baselines listed in Section 9 (DynaTTA, COSA,
-   PETSA), not just hand-rolled drift-score gates.
+   PETSA), not just hand-rolled drift-score gates. (`RollingLinearARForecaster`,
+   added for the dynamical-system experiment below, is a first step toward
+   a stronger adaptive forecaster, but is itself unstable as a standalone
+   forecaster on logistic map and Lorenz -- see below.)
+
+### Dynamical-system forecast adaptation
+
+`experiments/dynamical_forecast_adaptation.py` extends the forecast-
+adaptation evidence (previously only sine/quasi-periodic and ETTh1) to the
+two other controlled detection systems, asking directly: does
+topology-gated adaptation generalize across multiple dynamical regime
+shifts, or is the adaptation evidence mostly limited to the sine case?
+
+- **Systems tested:** `sine_quasiperiodic`, `logistic_map`, `lorenz` (same
+  causal generators as the detection experiments).
+- **Variants compared (10 total):** frozen forecaster; two standalone
+  adaptive forecasters (`RecentPatternForecaster`, and a new
+  `RollingLinearARForecaster` that refits a small ridge-regularized AR
+  model from the current context window alone at every prediction call,
+  falling back to last-value repeat on too-short context); always-on and
+  TAMC-gated 50/50 blends of frozen with each adaptive forecaster; and
+  mean/variance-, autocorrelation-, and spectral-gated blends (under the
+  same `ScalarDriftSignal` control law as `real_data_controlled_shift.py`)
+  paired with `RollingLinearARForecaster` as the fixed "best adaptive
+  forecaster" for the non-topological gates -- a decision made before
+  looking at any post-shift result, per the experiment's design note,
+  rather than a per-system validation search.
+- **Topology setup:** H0 throughout (per the ablation's finding that H0 is
+  the more robust default), with each system's existing detection delay
+  (sine: 8, logistic map: 2, Lorenz: 6) and window=128.
+- **10-seed Net Adaptation Score, key variants** (full table in
+  `figures/dynamical_forecast_adaptation_tradeoff_summary.csv`):
+
+  | System | TAMC-gated (recent-pattern) | Always-on (recent-pattern) | Best variant overall |
+  |---|---|---|---|
+  | Sine -> quasi-periodic | +0.0335 +/- 0.0982 | +0.0119 +/- 0.1162 | Adaptive rolling LinearAR alone (+0.2673 +/- 0.1546) |
+  | Logistic map | -0.2855 +/- 0.0656 | -0.5211 +/- 0.0457 | Frozen forecaster (0.0000) |
+  | Lorenz | **+0.1668 +/- 0.1144** | +0.1462 +/- 0.1222 | **TAMC-gated blend (recent-pattern)** |
+
+- **Honest result -- mixed, not a clean generalization.**
+  - **Lorenz: a genuine new win.** TAMC-gated blend (recent-pattern) is
+    the best variant overall, beating always-on blending and all three
+    non-topological gates (autocorrelation -0.7071, mean/variance -0.6407,
+    spectral -0.6123, all strongly negative). This is real evidence beyond
+    the sine-only result the limitation called out.
+  - **Logistic map: nothing helps, and TAMC does not change that.** Every
+    adaptive/blend variant is worse than the frozen forecaster alone,
+    including TAMC-gated blending. TAMC-gated (recent-pattern) at -0.2855
+    is the *least harmful* of every non-frozen variant (vs. always-on's
+    -0.5211 and the non-topological gates' -1.43 to -1.44), so the gate is
+    still doing its harm-minimization job correctly -- it just cannot
+    manufacture a benefit where the frozen forecaster is already
+    sufficient and no adaptive forecaster tried adds value.
+  - **Sine: complicates rather than confirms the earlier story.** TAMC-
+    gated blending is still positive (consistent with the earlier
+    `tamc_lite_synthetic_forecast.py` result), but is no longer the best
+    variant once `RollingLinearARForecaster` is added to the comparison:
+    a *standalone*, ungated rolling-AR forecaster (+0.2673) and even
+    autocorrelation-gated blending (+0.1622, paired with the same
+    rolling-AR forecaster) both beat TAMC-gated blending here. The earlier
+    sine result was correct given the variants it compared, but was not
+    the full picture once a stronger adaptive forecaster is on the table.
+  - **`RollingLinearARForecaster` alone is reliably harmful as a
+    standalone forecaster** on every system (sine -0.1227 to -0.2337
+    across the two runs, logistic map -2.52, Lorenz -4.67), despite
+    sometimes contributing positively once blended (sine). It is not a
+    safe drop-in replacement for `RecentPatternForecaster`.
+- **Does this reduce the "adaptation evidence is sine/ETTh1-only"
+  limitation?** Partially. It adds one genuine, robust new win (Lorenz)
+  and one informative new failure mode (logistic map, where nothing
+  helps), so the limitation should be sharpened rather than simply
+  removed: TAMC-gated adaptation generalizes to *some* but not all
+  dynamical regime shifts, and even on the system where the original
+  result came from (sine), it is not uniformly the best choice once more
+  adaptive-forecaster options are considered.
+- 3-seed and 10-seed runs agree on every qualitative conclusion above
+  (which system wins, which fails, which forecaster is unstable); only
+  magnitudes shift slightly between them.
 
 ### Topology ablation status
 
