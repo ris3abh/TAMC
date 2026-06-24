@@ -85,6 +85,85 @@ class MeanShiftResidual:
 
 
 @dataclass
+class AnalogResidualAdapter:
+    """Source-memory residual adapter: corrects via nearest-neighbor analog matching.
+
+    Fit once on source/pre-shift supervised windows: for each source context
+    `x_i` it stores the normalized context, the true future `y_i`, the
+    frozen forecaster's prediction `base_i`, and the residual
+    `res_i = y_i - base_i`. At prediction time it normalizes the current
+    context with the *source* mean/std, finds the `k` nearest stored
+    contexts by Euclidean distance, and returns a temperature-weighted
+    average of their residuals. No post-shift labels are ever used, and no
+    state is updated at prediction time (forward-only).
+    """
+
+    horizon: int
+    k: int = 5
+    temperature: float = 1.0
+    max_correction_norm: float | None = None
+    context_mean_: float = 0.0
+    context_std_: float = 1.0
+    memory_contexts_: np.ndarray = field(default_factory=lambda: np.empty((0, 0)))
+    memory_residuals_: np.ndarray = field(default_factory=lambda: np.empty((0, 0)))
+
+    def fit(
+        self,
+        contexts: np.ndarray,
+        targets: np.ndarray,
+        base_predictions: np.ndarray,
+    ) -> "AnalogResidualAdapter":
+        """Build the source-memory bank from source-regime supervised windows.
+
+        `contexts`: (n_samples, context_length); `targets` and
+        `base_predictions`: (n_samples, horizon). All three must come from
+        the source/pre-shift segment only.
+        """
+        contexts = np.asarray(contexts, dtype=float)
+        targets = np.asarray(targets, dtype=float)
+        base_predictions = np.asarray(base_predictions, dtype=float)
+
+        self.context_mean_ = float(contexts.mean())
+        self.context_std_ = float(contexts.std())
+        if self.context_std_ == 0.0:
+            self.context_std_ = 1.0
+
+        self.memory_contexts_ = (contexts - self.context_mean_) / self.context_std_
+        self.memory_residuals_ = targets - base_predictions
+        return self
+
+    def correction(self, context: np.ndarray) -> np.ndarray:
+        if self.memory_contexts_.shape[0] == 0:
+            raise RuntimeError("AnalogResidualAdapter has not been fit yet")
+
+        context = np.asarray(context, dtype=float)
+        normalized = (context - self.context_mean_) / self.context_std_
+
+        distances = np.linalg.norm(self.memory_contexts_ - normalized, axis=1)
+        k = min(self.k, distances.shape[0])
+        nearest_indices = np.argpartition(distances, k - 1)[:k]
+        nearest_distances = distances[nearest_indices]
+
+        weights = np.exp(-nearest_distances / self.temperature)
+        weight_sum = weights.sum()
+        if weight_sum == 0.0:
+            weights = np.ones_like(weights)
+            weight_sum = weights.sum()
+        weights = weights / weight_sum
+
+        correction = (weights[:, None] * self.memory_residuals_[nearest_indices]).sum(
+            axis=0
+        )
+
+        if self.max_correction_norm is not None:
+            norm = np.linalg.norm(correction)
+            if norm > self.max_correction_norm:
+                correction = correction * (self.max_correction_norm / norm)
+
+        return correction
+
+
+@dataclass
 class TamicLiteAdapter:
     """Topology-gated output adapter: y_hat_TAMC = y_hat + gate * residual_correction.
 
