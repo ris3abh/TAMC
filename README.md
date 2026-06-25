@@ -60,17 +60,23 @@ Early-stage research prototype.
   repo's detection experiments, the absolute cost is still small (tens of
   milliseconds per window), but this would not scale to large windows or
   per-step scoring without further optimization.
-- **Conference-scale benchmark expansion in progress.** A new baseline,
-  `src/regime_similarity.py`, implements an RG-style (Regime-Guided)
-  statistical/distributional regime-similarity gate from scratch (no
-  RG-TTA code used), and `experiments/benchmark_regime_control.py` is a
-  multi-dataset harness comparing it against TAMC's topological gate and
-  the existing mean/variance, autocorrelation, and spectral gates. Only
-  ETTh1 has been benchmarked so far (other datasets require local CSVs
-  not yet present); on that one dataset, TAMC and the RG-style gate are
-  both close to the frozen baseline and to each other, with TAMC not
-  beating the RG-style gate in this single run. This is reported as an
-  early, partial result from new infrastructure, not a benchmark verdict.
+- **Conference-scale benchmark expansion: full multi-dataset result.** A
+  multi-dataset real-series benchmark (`experiments/benchmark_regime_control.py`)
+  now compares TAMC against an RG-style statistical/distributional
+  regime-similarity gate (`src/regime_similarity.py`, implemented from
+  scratch, no RG-TTA code used), plus autocorrelation, spectral, and
+  mean/variance gates, all under the same control law, across
+  ETTh1/ETTh2/ETTm1/ETTm2/Weather under a controlled `seasonality_break`
+  perturbation. The result is a clear and consistent negative finding for
+  TAMC relative to the RG-style gate: **TAMC does not beat the RG-style
+  gate on any of the 5 datasets**, and typically ranks 4th-7th of the 8
+  variants tested (best case 4th, on ETTm1/ETTm2/Weather; worst case 7th,
+  on ETTh2). This is an early, infrastructure-stage benchmark result —
+  one shift type, one set of fixed parameters — but it directly weakens
+  the case for topological drift over simpler statistical/distributional
+  regime similarity as a real-data adaptation control signal. See
+  [paper_notes/research_brief.md](paper_notes/research_brief.md#conference-scale-benchmark-expansion)
+  for the full per-dataset table.
 - This is still an early research prototype evaluated only on controlled
   synthetic dynamical systems and controlled, injected perturbations on
   one or two real series — not yet tested on a naturally occurring

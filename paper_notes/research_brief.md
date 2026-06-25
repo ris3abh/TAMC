@@ -1288,20 +1288,79 @@ CSV or value column is unavailable locally, without failing the rest of
 the benchmark, and reports an honest "does TAMC beat the RG-style gate"
 verdict per dataset.
 
-**Current status:** implemented and smoke-tested; only `data/ETTh1.csv`
-is available locally as of this writing (ETTh2/ETTm1/ETTm2/Weather are
-not), so only ETTh1 has actually been benchmarked so far. On that one
-dataset and shift type (`seasonality_break`, H0, default parameters),
-TAMC-gated blending and the RG-style gate are both close to the frozen
-baseline and to each other (Net Adaptation Score -0.0016 vs. -0.0012
-respectively) -- TAMC does *not* beat the RG-style gate on this single
-run, and autocorrelation-gating is currently the best of the gates tested
-here. This is reported honestly as a pending/initial result, not a
-benchmark verdict: it is one dataset, one shift type, and the margins
-involved are smaller than the noise floor seen in other multi-seed
-results in this document. Full conclusions require the other datasets
-(pending local CSV availability) and multi-seed runs across shift types.
-This benchmark harness is infrastructure, not a finished result. The next
-step after this is adding neural forecasting backbones such as
-DLinear/PatchTST as frozen forecasters, which this task deliberately does
-not implement yet.
+**Current status -- full 5-dataset result (update from the initial
+ETTh1-only finding above).** All five datasets (`data/ETTh1.csv`,
+`ETTh2.csv`, `ETTm1.csv`, `ETTm2.csv`, `weather.csv`) are now available
+locally; the dataset schemas matched the script's defaults exactly
+(`date` timestamp column, `OT` value column present in every file), so no
+filename or column-resolution fixes were needed. A 2-seed smoke test
+across all 5 datasets ran cleanly (no errors, no skipped datasets,
+9m41s), followed by the full 10-seed run (`--shift-type
+seasonality_break`, H0, all other parameters at default; ~26 minutes
+total). **Caveat:** `seasonality_break` is a fully deterministic
+perturbation given the input segment (only the `noise` shift type
+actually varies with seed -- see the same caveat in
+`real_data_controlled_shift.py`'s findings above), so all 10 seeds
+produced numerically identical results (std = 0.0 throughout
+`figures/benchmark_regime_control_tradeoff_summary.csv`); the 10-seed run
+adds no statistical robustness over the 2-seed smoke test for this shift
+type, it only confirms the result is deterministic, not noisy.
+
+Net Adaptation Score and rank (of 8 variants, 1 = best) per dataset:
+
+| Dataset | TAMC NAS (rank) | RG-style NAS (rank) | Best variant (NAS) |
+|---|---|---|---|
+| ETTh1 | -0.0016 (5th) | -0.0012 (4th) | Autocorrelation-gated (+0.0015) |
+| ETTh2 | -0.0102 (7th) | -0.0059 (5th) | Autocorrelation-gated (+0.0061) |
+| ETTm1 | +0.0213 (4th) | +0.0245 (3rd) | Always-on 50/50 blend (+0.0361) |
+| ETTm2 | -0.0023 (5th) | +0.0028 (1st) | RG-style regime-similarity-gated (+0.0028) |
+| Weather | +0.0010 (4th) | +0.0021 (3rd) | Spectral-gated (+0.0028) |
+
+**Honest finding: this is not mixed evidence -- TAMC loses to the
+RG-style gate on every single one of the 5 datasets tested**, by margins
+ranging from small (ETTm1: 0.0213 vs. 0.0245) to clearly worse (ETTh2:
+-0.0102 vs. -0.0059; ETTm2: -0.0023 vs. +0.0028, where RG-style is the
+single best variant of all 8 and TAMC is net-negative). TAMC also never
+ranks better than 4th of 8 variants on any dataset, and is the *worst*
+gated blend (7th of 8, beating only the ungated adaptive forecaster and
+frozen-relative comparisons aside) on ETTh2. Autocorrelation-gating is
+the best or tied-for-best non-RG gate on 3 of 5 datasets (ETTh1, ETTh2,
+and competitive on others); the always-on blend is unexpectedly strong on
+ETTm1 specifically. Most margins across all gates are small in absolute
+terms (|NAS| < 0.01 on 4 of 5 datasets), so this should not be read as
+"TAMC is catastrophically bad" -- but it is a clear, consistent signal
+that **a simple, transparent statistical/distributional regime-similarity
+gate (RG-style) is currently a stronger real-data control signal than
+TAMC's topological drift gate**, under this benchmark's protocol
+(`seasonality_break` injection, fixed H0/delay=8/window=128 parameters,
+shared `RecentPatternForecaster` adaptive forecaster). This directly
+updates and supersedes the earlier ETTh1-only finding (which showed TAMC
+and RG-style close to each other and to zero) -- with more datasets, the
+gap between TAMC and RG-style is visible and consistent in direction,
+even though still modest in most cases.
+
+**Output files:** `figures/benchmark_regime_control_metrics.csv`
+(long-format, every dataset/seed/variant/segment row),
+`figures/benchmark_regime_control_summary.csv` (grouped mean/std),
+`figures/benchmark_regime_control_tradeoff_summary.csv` (compact
+per-dataset/variant tradeoff table, the one used for the table above),
+and one figure per dataset,
+`figures/benchmark_regime_control_<dataset>_seasonality_break.png`.
+
+**Next steps:**
+1. Re-run with `--shift-type noise` to get an actual seed-varying
+   robustness check (the way `real_data_controlled_shift.py`'s noise
+   shift was used as the honest robustness check for the ETTh1-only
+   result).
+2. Investigate *why* RG-style beats TAMC here -- candidates include: the
+   real-data shift may be more statistically/distributionally visible
+   than topologically visible (unlike the synthetic dynamical-systems
+   shifts, where TAMC's detection advantage was clear), or the fixed H0/
+   delay=8/window=128 topology parameters (carried over from the
+   synthetic detection experiments) may not be well-matched to real
+   financial/weather/sensor series.
+3. Add neural forecasting backbones such as DLinear/PatchTST as frozen
+   forecasters (deliberately not implemented in this benchmark step).
+4. Test other shift types (`amplitude`, `trend`, `frequency_proxy`) to
+   check whether TAMC's relative weakness is specific to
+   `seasonality_break` or general.

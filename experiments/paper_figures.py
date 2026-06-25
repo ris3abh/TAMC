@@ -585,6 +585,72 @@ def make_dynamical_adaptation_summary(
     return True
 
 
+def make_regime_benchmark_summary(
+    output_path: Path, regenerate_expensive: bool
+) -> bool:
+    """Optional Figure 7: TAMC vs. RG-style regime-similarity gate, by dataset."""
+    path = FIGURES_DIR / "benchmark_regime_control_tradeoff_summary.csv"
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "experiments/benchmark_regime_control.py",
+        "--multi-seed",
+        "10",
+    ]
+    if not ensure_csv(
+        path, cmd, "regime-control benchmark tradeoff summary", regenerate_expensive
+    ):
+        print("  SKIP: Figure 7 (regime benchmark summary) -- missing data.")
+        return False
+
+    benchmark_df = pd.read_csv(path)
+    datasets = sorted(benchmark_df["Dataset"].unique())
+    variants = [
+        "TAMC-gated blend",
+        "RG-style regime-similarity-gated blend",
+        "Autocorrelation-gated blend",
+        "Spectral-gated blend",
+    ]
+    labels = ["TAMC-gated", "RG-style-gated", "Autocorrelation-gated", "Spectral-gated"]
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    n_variants = len(variants)
+    bar_width = 0.8 / n_variants
+    x_base = np.arange(len(datasets))
+
+    for i, (variant, label) in enumerate(zip(variants, labels)):
+        means = []
+        stds = []
+        for dataset in datasets:
+            row = benchmark_df[
+                (benchmark_df["Dataset"] == dataset)
+                & (benchmark_df["Variant"] == variant)
+            ]
+            if row.empty:
+                means.append(np.nan)
+                stds.append(0.0)
+            else:
+                means.append(row["Net Adaptation Score mean"].iloc[0])
+                stds.append(row["Net Adaptation Score std"].iloc[0])
+        offset = (i - (n_variants - 1) / 2) * bar_width
+        ax.bar(
+            x_base + offset, means, width=bar_width, yerr=stds, capsize=2, label=label
+        )
+
+    ax.axhline(0, color="black", linewidth=1, label="Frozen baseline")
+    ax.set_xticks(x_base)
+    ax.set_xticklabels(datasets, fontsize=8)
+    ax.set_ylabel("Net Adaptation Score (10-seed mean +/- std)")
+    ax.set_title("Real-data benchmark: TAMC vs. RG-style regime-similarity gate")
+    ax.legend(fontsize=8)
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+    return True
+
+
 def main() -> None:
     import argparse
 
@@ -627,6 +693,10 @@ def main() -> None:
         (
             "paper_dynamical_adaptation_summary.png",
             lambda p: make_dynamical_adaptation_summary(p, regenerate_expensive),
+        ),
+        (
+            "paper_regime_benchmark_summary.png",
+            lambda p: make_regime_benchmark_summary(p, regenerate_expensive),
         ),
     ]
 
