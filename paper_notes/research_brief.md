@@ -1254,3 +1254,54 @@ detection experiments), the absolute cost is still small (tens of
 milliseconds per window), so the existing experiments remain practical,
 but this would not scale to windows in the many hundreds or to per-step
 (stride=1) scoring without further optimization.
+
+## Conference-scale benchmark expansion
+
+The project's target has shifted from a workshop-only paper toward a
+stronger, benchmarked conference-style paper. The closest identified
+conceptual neighbor for this stage is **RG-TTA (Regime-Guided Test-Time
+Adaptation)**, which uses distributional regime similarity as a
+meta-controller for TTA intensity -- structurally close to TAMC's gate
+mechanism, but using statistical/distributional regime similarity instead
+of topological drift. TAMC needs a direct comparison against an RG-style
+statistical/distributional regime-similarity gate; no RG-TTA code is used
+or copied, only a from-scratch baseline implemented inside this repo.
+
+**New baseline:** `src/regime_similarity.py` implements
+`RegimeSimilaritySignal`, an RG-style regime-similarity signal built from
+moment-based regime signatures (mean, std, skewness, kurtosis, lag-1
+autocorrelation), a two-sample KS statistic, Wasserstein distance, and a
+symmetric variance ratio, combined into one `combined_similarity` and
+converted to drift (`1 - combined_similarity`). It is gated through the
+identical `history -> z(drift) -> sigmoid(z - threshold)` control law as
+`TamicSignal`/`ScalarDriftSignal`, so any TAMC-vs-RG-style comparison
+isolates the drift signal, not the gate mechanism.
+
+**New benchmark harness:** `experiments/benchmark_regime_control.py`
+compares 8 variants (frozen forecaster, adaptive recent-pattern
+forecaster alone, always-on 50/50 blend, and TAMC-/RG-style-/mean-
+variance-/autocorrelation-/spectral-gated blends, all gated blends
+sharing the same adaptive forecaster) across multiple real datasets
+(ETTh1, ETTh2, ETTm1, ETTm2, Weather) under the same controlled-shift
+protocol as `real_data_controlled_shift.py`. It skips any dataset whose
+CSV or value column is unavailable locally, without failing the rest of
+the benchmark, and reports an honest "does TAMC beat the RG-style gate"
+verdict per dataset.
+
+**Current status:** implemented and smoke-tested; only `data/ETTh1.csv`
+is available locally as of this writing (ETTh2/ETTm1/ETTm2/Weather are
+not), so only ETTh1 has actually been benchmarked so far. On that one
+dataset and shift type (`seasonality_break`, H0, default parameters),
+TAMC-gated blending and the RG-style gate are both close to the frozen
+baseline and to each other (Net Adaptation Score -0.0016 vs. -0.0012
+respectively) -- TAMC does *not* beat the RG-style gate on this single
+run, and autocorrelation-gating is currently the best of the gates tested
+here. This is reported honestly as a pending/initial result, not a
+benchmark verdict: it is one dataset, one shift type, and the margins
+involved are smaller than the noise floor seen in other multi-seed
+results in this document. Full conclusions require the other datasets
+(pending local CSV availability) and multi-seed runs across shift types.
+This benchmark harness is infrastructure, not a finished result. The next
+step after this is adding neural forecasting backbones such as
+DLinear/PatchTST as frozen forecasters, which this task deliberately does
+not implement yet.

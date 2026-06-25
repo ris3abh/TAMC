@@ -60,10 +60,21 @@ Early-stage research prototype.
   repo's detection experiments, the absolute cost is still small (tens of
   milliseconds per window), but this would not scale to large windows or
   per-step scoring without further optimization.
+- **Conference-scale benchmark expansion in progress.** A new baseline,
+  `src/regime_similarity.py`, implements an RG-style (Regime-Guided)
+  statistical/distributional regime-similarity gate from scratch (no
+  RG-TTA code used), and `experiments/benchmark_regime_control.py` is a
+  multi-dataset harness comparing it against TAMC's topological gate and
+  the existing mean/variance, autocorrelation, and spectral gates. Only
+  ETTh1 has been benchmarked so far (other datasets require local CSVs
+  not yet present); on that one dataset, TAMC and the RG-style gate are
+  both close to the frozen baseline and to each other, with TAMC not
+  beating the RG-style gate in this single run. This is reported as an
+  early, partial result from new infrastructure, not a benchmark verdict.
 - This is still an early research prototype evaluated only on controlled
   synthetic dynamical systems and controlled, injected perturbations on
-  one real series — not yet tested on a naturally occurring real-world
-  regime shift, and not a final benchmarked method. See
+  one or two real series — not yet tested on a naturally occurring
+  real-world regime shift, and not a final benchmarked method. See
   [paper_notes/research_brief.md, Section 19](paper_notes/research_brief.md#19-current-empirical-status)
   for full numbers and current limitations.
 
