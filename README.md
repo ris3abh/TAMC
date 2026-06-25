@@ -77,6 +77,21 @@ Early-stage research prototype.
   regime similarity as a real-data adaptation control signal. See
   [paper_notes/research_brief.md](paper_notes/research_brief.md#conference-scale-benchmark-expansion)
   for the full per-dataset table.
+- **Diagnostic: TAMC's real-data weakness is not specific to one shift
+  type.** A follow-up sweep (`experiments/benchmark_shift_types.py`, 3
+  seeds, 75 dataset/shift-type cells: 5 datasets x 5 controlled
+  perturbation types) checked whether the `seasonality_break` finding
+  above generalizes. It does: RG-style beats TAMC on `amplitude`,
+  `trend`, and `seasonality_break`; TAMC's apparent edge on `noise` and
+  `frequency_proxy` is mixed and, for `noise`, driven almost entirely by
+  one outlier cell (ETTm2) where the actual best variant is the ungated
+  adaptive forecaster, not TAMC. Across all 25 dataset/shift-type
+  combinations, **TAMC never ranks 1st overall** (of 8 variants tested in
+  any cell), and beats the RG-style gate outright in only 4/25 cells vs.
+  15/25 where RG-style wins. This is a 3-seed diagnostic, not a final
+  benchmark, but it strengthens rather than narrows the case that a
+  simple statistical/distributional regime-similarity signal currently
+  outperforms TAMC's topological drift on real data under this protocol.
 - This is still an early research prototype evaluated only on controlled
   synthetic dynamical systems and controlled, injected perturbations on
   one or two real series — not yet tested on a naturally occurring

@@ -1361,6 +1361,97 @@ and one figure per dataset,
    financial/weather/sensor series.
 3. Add neural forecasting backbones such as DLinear/PatchTST as frozen
    forecasters (deliberately not implemented in this benchmark step).
-4. Test other shift types (`amplitude`, `trend`, `frequency_proxy`) to
+4. ~~Test other shift types (`amplitude`, `trend`, `frequency_proxy`) to
    check whether TAMC's relative weakness is specific to
-   `seasonality_break` or general.
+   `seasonality_break` or general.~~ Done -- see "Diagnostic shift-type
+   sweep" immediately below. Answer: general, not specific to
+   `seasonality_break`.
+
+### Diagnostic shift-type sweep: TAMC vs RG-style gate
+
+This follows up directly on Next-step item 4 above: is TAMC's loss to the
+RG-style gate specific to `seasonality_break`, or does it hold across
+every controlled real-data perturbation type?
+
+- **Command:** `uv run python experiments/benchmark_shift_types.py
+  --multi-seed 3` (after a `--multi-seed 1` smoke test confirmed all 25
+  dataset/shift-type cells run cleanly with no failures -- only benign
+  `RuntimeWarning`s from `scipy.stats.skew`/`kurtosis` on near-constant
+  windows, already guarded by the `np.isfinite` checks in
+  `regime_similarity.py`).
+- **Seeds:** 3 (not 10 -- see runtime below). Reuses `run_experiment`
+  from `experiments/benchmark_regime_control.py` directly rather than
+  duplicating benchmark logic; only the outer sweep over shift types and
+  the TAMC-vs-RG diagnostic summary are new.
+- **Scope:** 5 datasets (ETTh1, ETTh2, ETTm1, ETTm2, Weather) x 5 shift
+  types (`amplitude`, `trend`, `noise`, `seasonality_break`,
+  `frequency_proxy`) = 25 dataset/shift-type cells, each averaged over 3
+  seeds (75 total runs). **Caveat:** only `noise` actually varies by seed
+  (the other four shift types are deterministic given the input segment,
+  per the same caveat documented for `real_data_controlled_shift.py`), so
+  the 3 seeds add genuine new information only for `noise` -- for the
+  other four shift types they only confirm determinism, matching the
+  1-seed smoke test exactly.
+- **Runtime:** 1-seed smoke test: 11m46s (25 cells). Full 3-seed run:
+  36m39s (75 cells, ~29s/run average). All 75 cells completed with zero
+  failures or skips.
+- **Output files:** `figures/benchmark_shift_types_metrics.csv`
+  (long-format), `figures/benchmark_shift_types_summary.csv` (grouped
+  mean/std), `figures/benchmark_shift_types_tradeoff_summary.csv`
+  (compact tradeoff table), `figures/benchmark_shift_types_tamc_vs_rg.csv`
+  (one row per dataset/shift-type cell, the table below), and
+  `figures/benchmark_shift_types_tamc_vs_rg.png` (zero-centered heatmap,
+  rows=datasets, columns=shift types, value=TAMC NAS minus RG-style NAS).
+
+**Headline result (25 cells, 3-seed):**
+
+| | Count |
+|---|---|
+| TAMC beats RG-style (margin > 0.001) | 4 / 25 |
+| RG-style beats TAMC (margin > 0.001) | 15 / 25 |
+| Near-tied (\|margin\| <= 0.001) | 6 / 25 |
+| TAMC ranks 1st overall (of 8 variants), any cell | 0 / 25 |
+| Frozen forecaster is outright best, any cell | 0 / 25 |
+
+By shift type (mean TAMC-minus-RG Net Adaptation Score, descending):
+
+| Shift Type | Mean (TAMC - RG) | TAMC wins | RG wins | Near ties | Verdict |
+|---|---|---|---|---|---|
+| `noise` | +0.0150 | 2 | 1 | 2 | TAMC favored -- but see caveat below |
+| `frequency_proxy` | +0.0035 | 2 | 2 | 1 | Mixed/near-tied |
+| `seasonality_break` | -0.0028 | 0 | 4 | 1 | RG-style favored |
+| `trend` | -0.0058 | 0 | 3 | 2 | RG-style favored |
+| `amplitude` | -0.0098 | 0 | 5 | 0 | RG-style favored |
+
+**Honest conclusion: this is not mixed evidence in TAMC's favor -- the
+weakness is general, not specific to `seasonality_break`.** RG-style
+beats TAMC on 3 of 5 shift types outright (`amplitude`, `trend`,
+`seasonality_break`, with `amplitude` a clean 5/5 sweep for RG-style and
+zero TAMC wins), and TAMC's apparent advantage on `noise` does not hold
+up to scrutiny: the entire +0.0150 mean is driven almost entirely by one
+outlier cell, ETTm2/`noise` (TAMC-RG = +0.0719, by far the single largest
+margin in the whole 25-cell table) -- and even there, the actual best
+variant is the *ungated* `Adaptive recent-pattern forecaster`
+(NAS=0.2447), not the TAMC-gated blend (NAS=0.1643). Remove that one
+outlier and `noise` is close to a wash (ETTh1: RG wins; ETTh2: small TAMC
+win +0.0071; ETTm1: near-tied; Weather: small RG win). `frequency_proxy`
+is genuinely the most balanced shift type (2 TAMC wins, 2 RG wins, 1 tie),
+making it the one shift type where this diagnostic does not point clearly
+toward RG-style. Across the full sweep, TAMC's strongest single result is
+ETTh2/`frequency_proxy` (TAMC-RG = +0.0269, best variant there is
+Always-on, not TAMC, so even this is not an outright TAMC win), and its
+worst is ETTh2/`amplitude` (TAMC-RG = -0.0178). Most margins remain small
+in absolute terms, but the *direction* is now confirmed across multiple
+shift types, not an artifact of `seasonality_break` specifically: a
+simple statistical/distributional regime-similarity gate is the more
+reliable real-data control signal of the two, under this benchmark's
+fixed protocol and parameters (H0, delay=8, window=128,
+`RecentPatternForecaster` as the shared adaptive forecaster).
+
+**Status:** this is a 3-seed diagnostic, not a 10-seed final benchmark --
+a full 10-seed sweep (250 runs) was judged too expensive to run in this
+session given the 3-seed run already took 36m39s (~5x that is ~3 hours),
+and would add new information only for the `noise` shift type. If a
+10-seed confirmation is wanted, prioritize re-running just `--shift-types
+noise` at 10 seeds rather than the full 5-shift-type sweep, since the
+other four shift types are already confirmed deterministic.
